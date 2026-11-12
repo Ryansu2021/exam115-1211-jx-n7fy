@@ -2650,7 +2650,7 @@ cv.addEventListener('pointermove',e=>{ if(!drawing) return; drawing.p.push(toN(e
 cv.addEventListener('pointerup',()=>{ drawing=null; wbCast(); }); cv.addEventListener('pointercancel',()=>{ drawing=null; wbCast(); });
 
 /* 啟動 */
-const m=(location.hash||'').match(/^#p(\d+)$/); if(m) cur=Math.max(0,Math.min(PAGES.length-1,+m[1]-1));
+const m=(location.hash||'').match(/^#p(\d+)$/); if(m) cur=Math.max(0,Math.min(PAGES.length-1,+m[1]-1)); /*ACTHASH*/{ const a=(decodeURIComponent((location.hash||'').slice(1)).match(/(?:^|&)act=([^&]+)/)||[])[1]; if(a){ const hit=p=>p&&p.acts&&p.acts.some(x=>x&&(x.id===a||(x.items||[]).some(y=>y&&y.id===a))); let i=PAGES.findIndex(p=>p.ask&&hit(p)); if(i<0) i=PAGES.findIndex(hit); if(i>=0) cur=i; } }
 let rt; addEventListener('resize',()=>{ clearTimeout(rt); rt=setTimeout(()=>{ layout(); if(wbOn) fitCv(); },120); });
 layout();
 if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>render());
