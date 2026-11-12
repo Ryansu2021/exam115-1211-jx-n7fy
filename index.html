@@ -2334,6 +2334,7 @@ const PRT_CSS=`#prt{position:absolute;left:-99999px;top:0;width:1123px}
 #prt .prt-urls{display:flex;flex-direction:column;gap:.1em}
 #prtmsg{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:99;background:var(--ink);color:var(--paper);padding:14px 20px;border-radius:12px;font-size:15px}`;
 function pdfAsk(){
+  /*PDFSTU*/if(!TEACH && !AFTER){ savePDF({links:false,urls:false}); return; }
   let d=document.getElementById('pdfopt'); if(d) d.remove();
   d=document.createElement('div'); d.id='pdfopt';
   let lk=1, url=0; try{ lk=+(localStorage.getItem('pdfLinks')??1); url=+(localStorage.getItem('pdfUrls')??0); }catch(e){}
