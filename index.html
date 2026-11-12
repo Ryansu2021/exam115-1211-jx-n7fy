@@ -539,7 +539,7 @@ const strip=s=>String(s||'').replace(/<[^>]+>/g,'');
 const LINK=(u,t)=>`<a href="${esc(u)}" target="_blank" rel="noopener" style="color:var(--chalk);word-break:break-all">${esc(t||String(u).replace(/^https?:\/\//,''))}</a>`;
 const VIEWT = ()=>false;
 const INTON = !!CFG.互動網址;
-const JOIN = INTON ? CFG.互動網址+(CFG.互動網址.includes('?')?'&':'?')+'s='+encodeURIComponent(CFG.場次代號||'') : '';
+const JOIN = INTON ? CFG.互動網址+(CFG.互動網址.includes('?')?'&':'?')+'s='+encodeURIComponent(CFG.場次代號||'')/*BACKB*/+(CFG.學員網址?'&b='+encodeURIComponent(CFG.學員網址):'') : '';
 const WALL = INTON ? '研習互動頁' : 'Padlet';
 const SLIDO = INTON ? '用手機打開研習互動頁作答（整場同一個連結）。' : (TEACH?'Slido 作答：[活動代碼]':'到 Slido 作答，代碼看投影畫面。');
 const PADLET = INTON ? '用手機在研習互動頁送出，答案會即時出現在投影畫面。' : (TEACH?'Padlet：[短網址]':'Padlet 連結看投影畫面。');
