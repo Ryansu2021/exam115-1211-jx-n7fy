@@ -2655,4 +2655,331 @@ const m=(location.hash||'').match(/^#p(\d+)$/); if(m) cur=Math.max(0,Math.min(PA
 let rt; addEventListener('resize',()=>{ clearTimeout(rt); rt=setTimeout(()=>{ layout(); if(wbOn) fitCv(); },120); });
 layout();
 if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>render());
+/*@@LOOK@@*/
+/* ---------- 🎨 版面：配色＋字型、封面版型、內頁版式（修正_版面切換.py；做法取自簡報牌庫） ---------- */
+/*LOOK0*/const LOOK0=null;/*LOOK0*/
+(function(){
+  const ISAUD=window.name==='aiprep_aud' || /aud/.test(location.hash);
+  const LK_KEY='lk_'+(CFG.場次代號||'ebk')+'_'+(TEACH?'t':AFTER?'a':'s');
+  const PALS=[
+    {id:'paper',  name:'紙本暖橘（原本）', c:['#e3e4ea','#fcfbf8','#1c2130','#b4532f','#3d6fb0']},
+    {id:'theater',name:'放映室',   c:['#0b0b0b','#161616','#f5f5f5','#e50914','#46d369']},
+    {id:'board',  name:'黑板綠',   c:['#14211b','#1f3329','#eef3ea','#f2c94c','#8fd0ff']},
+    {id:'ink',    name:'宣紙水墨', c:['#e6dfcf','#f6f1e5','#232120','#b3302d','#5b6b62']},
+    {id:'coast',  name:'花蓮海岸', c:['#d6ecf1','#f6fbfc','#0f2f38','#0b7d8e','#e8743b']},
+    {id:'dawn',   name:'晨光暖陽', c:['#f3e5d6','#fffaf2','#38281a','#d9661f','#5f8a2b']},
+    {id:'night',  name:'夜空靛紫', c:['#0d1024','#171a35','#e9e9ff','#a98bff','#4fe0c8']},
+    {id:'sakura', name:'櫻花',     c:['#f5e4e9','#fff9fa','#3a2330','#cf2f68','#4b6fe0']},
+    {id:'three',  name:'三版本色', c:['#e6e9f0','#fbfcfe','#1a2233','#2563c9','#d06a12']},
+    {id:'mono',   name:'極簡黑白', c:['#e9e9e9','#ffffff','#111111','#111111','#7a7a7a']},
+  ];
+  const FONTS=[
+    {id:'serif',name:'明體（原本）',d:'"Noto Serif TC","Songti TC","PMingLiU",serif',w:900},
+    {id:'sans', name:'粗黑體',d:'"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif',w:900},
+    {id:'kai',  name:'文楷手寫',d:'"LXGW WenKai TC","Kaiti TC","BiauKai","DFKai-SB",serif',w:700},
+  ];
+  const COVERS=[
+    {id:'orig',name:'原本（座標格）'},{id:'classic',name:'經典左右'},{id:'minimal',name:'極簡大字'},{id:'split',name:'對半色塊'},
+    {id:'board',name:'黑板'},{id:'magazine',name:'雜誌封面'},{id:'timeline',name:'時間軸'},{id:'ink',name:'水墨直書'},
+  ];
+  const INNERS=[
+    {id:'std',name:'標準（原本）'},{id:'card',name:'卡片'},{id:'band',name:'黑板標題條'},{id:'mag',name:'雜誌'},
+    {id:'note',name:'筆記本'},{id:'frame',name:'框線'},{id:'mini',name:'極簡'},
+  ];
+  const DECOS=[{id:'none',name:'無'},{id:'circles',name:'圓斑'},{id:'dots',name:'圓點'},{id:'stripes',name:'斜紋'},{id:'grid',name:'方格'}];
+
+  /* ---- 色彩計算（和簡報牌庫 shared.js 相同的推算方式） ---- */
+  const hx=h=>{ h=h.replace('#',''); if(h.length===3) h=h.replace(/./g,'$&$&'); return [0,2,4].map(i=>parseInt(h.substr(i,2),16)); };
+  const toHex=a=>'#'+a.map(v=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
+  const mix=(a,b,t)=>{ const A=hx(a),B=hx(b); return toHex(A.map((v,i)=>v+(B[i]-v)*t)); };
+  const lum=h=>{ const [r,g,b]=hx(h).map(v=>{ v/=255; return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4); }); return .2126*r+.7152*g+.0722*b; };
+  const contrast=(a,b)=>{ const x=lum(a),y=lum(b); return (Math.max(x,y)+.05)/(Math.min(x,y)+.05); };
+  const hsl=(h,s,l)=>{ h=((h%360)+360)%360; s/=100; l/=100; const k=n=>(n+h/30)%12, a=s*Math.min(l,1-l);
+    const f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1))); return toHex([f(0)*255,f(8)*255,f(4)*255]); };
+  function vars(c){
+    const [desk,paper,ink,accent,chalk]=c, dark=lum(paper)<.3;
+    const board=dark?mix(paper,'#000000',.45):mix(ink,chalk,.12), boardInk=dark?ink:mix(paper,'#ffffff',.5);
+    return {dark, v:{'--desk':desk,'--paper':paper,'--paper2':mix(paper,ink,.05),'--ink':ink,'--ink2':mix(ink,paper,.28),'--ink3':mix(ink,paper,.48),
+      '--line':mix(paper,ink,.14),'--accent':accent,'--accent-soft':mix(paper,accent,.16),'--chalk':chalk,'--chalk-soft':mix(paper,chalk,.15),
+      '--before':mix(ink,paper,.4),'--board':board,'--board-ink':boardInk,'--gutter-shade':dark?'rgba(0,0,0,.45)':'rgba(28,33,48,.13)'}};
+  }
+  function randomPal(){
+    for(let k=0;k<80;k++){ const R=Math.random, dark=R()<.33, h=R()*360;
+      const paper=dark?hsl(h,18+R()*20,8+R()*6):hsl(h,25+R()*35,96+R()*2.5), desk=dark?hsl(h,15+R()*15,4+R()*4):hsl(h,14+R()*22,86+R()*6);
+      const ink=dark?hsl(h,12,91+R()*5):hsl(h,22+R()*18,10+R()*6), ah=h+140+R()*80, accent=hsl(ah,60+R()*25,dark?60+R()*8:40+R()*8);
+      const chalk=hsl(ah+(R()<.5?-1:1)*(70+R()*50),45+R()*25,dark?64:40), c=[desk,paper,ink,accent,chalk];
+      if(contrast(ink,paper)>=9 && contrast(accent,paper)>=3.4 && contrast(chalk,paper)>=3) return c; }
+    return PALS[0].c.slice();
+  }
+  function flip(c){ /* 深淺對調 */
+    const [desk,paper,ink,accent,chalk]=c, dark=lum(paper)<.3;
+    if(!dark){ const P=mix(ink,'#000000',.25), D=mix(P,'#000000',.4); return [D,P,mix(paper,ink,.06),mix(accent,'#ffffff',.3),mix(chalk,'#ffffff',.3)]; }
+    const P=mix(ink,'#ffffff',.6), D=mix(P,'#808080',.15); return [D,P,mix(paper,'#000000',.2),mix(accent,'#000000',.3),mix(chalk,'#000000',.3)];
+  }
+
+  /* ---- 設定 ---- */
+  const DEF={pal:null,palName:'',font:'serif',cover:'orig',inner:'std',deco:'none'};
+  let L=Object.assign({},DEF,LOOK0||{}), USED=[];
+  try{ const s=JSON.parse(localStorage.getItem(LK_KEY)||'null'); if(s){ L=Object.assign({},DEF,s.L||{}); USED=s.used||[]; } }catch(e){}
+  const save=()=>{ try{ localStorage.setItem(LK_KEY,JSON.stringify({L,used:USED.slice(-40)})); }catch(e){} };
+  window.__LOOK=()=>({pal:L.pal,palName:L.palName,font:L.font,cover:L.cover,inner:L.inner,deco:L.deco});
+
+  /* ---- 內頁版式：同一組規則套到整本書（body）或單張預覽（.pg.lkp） ---- */
+  const SKIN={
+    card:`@P{background:var(--paper2)}@P .body{background:var(--paper);margin:.15em 1em .2em;border:1px solid var(--line);border-radius:1em;box-shadow:0 .2em .7em rgba(0,0,0,.08)}@P .run .rn{background:var(--chalk);color:var(--paper);border-radius:99px;padding:.05em .7em}@P .folio{padding-bottom:.6em}`,
+    band:`@P .run{background:var(--board);color:var(--board-ink);padding-top:.75em;padding-bottom:.6em;margin-bottom:.4em;opacity:1}@P .run .rn{color:var(--accent);filter:brightness(1.25)}@P .h3row .h3,@P .op-name{color:var(--ink)}@P .h3row{border-bottom:2px solid var(--accent);padding-bottom:.25em}@P .folio{color:var(--accent);font-weight:700}`,
+    mag:`@P .run{margin:0 2.2em;padding-left:0!important;padding-right:0!important;border-bottom:.18em solid var(--ink);letter-spacing:.22em;color:var(--ink);padding-bottom:.35em}@P .h3row .h3{border-left:.32em solid var(--accent);padding-left:.45em}@P .op-name{font-size:2.6em;letter-spacing:.01em}@P .op-no{color:var(--accent)}@P .folio{font-family:var(--f-display);font-weight:900;font-size:1.25em;color:var(--accent);padding-bottom:.5em}@P .rule{height:.18em;width:100%;background:var(--ink)}`,
+    note:`@P{background-color:var(--paper);background-image:linear-gradient(90deg,transparent 2.6em,color-mix(in srgb,var(--accent) 45%,transparent) 2.6em,color-mix(in srgb,var(--accent) 45%,transparent) calc(2.6em + 1px),transparent calc(2.6em + 1px)),repeating-linear-gradient(transparent 0 1.75em,color-mix(in srgb,var(--chalk) 22%,transparent) 1.75em calc(1.75em + 1px))}@P .h3row .h3{background:linear-gradient(transparent 58%,color-mix(in srgb,var(--accent) 28%,transparent) 58%);width:fit-content;padding:0 .2em}@P .op-name{background:linear-gradient(transparent 62%,color-mix(in srgb,var(--accent) 24%,transparent) 62%);width:fit-content}`,
+    frame:`@P{box-shadow:inset 0 0 0 .55em var(--paper),inset 0 0 0 .7em var(--accent),inset 0 0 0 .95em var(--paper),inset 0 0 0 1.02em var(--chalk)}@P .run{padding-top:2.6em;padding-left:3.2em!important;padding-right:3.2em!important}@P .folio{padding-bottom:2.4em;padding-left:3.2em!important;padding-right:3.2em!important}@P .h3row .h3,@P .op-name{text-align:left}`,
+    mini:`@P .run,@P .folio{color:color-mix(in srgb,var(--ink3) 55%,transparent)}@P .run .rn{color:inherit}@P .rule{height:.12em;width:2.6em;background:var(--ink)}@P .h3row .h3,@P .op-name{font-weight:700;letter-spacing:.03em}@P .mk{background:transparent!important;border:1px solid currentColor!important}`,
+  };
+  let css='';
+  for(const id in SKIN) SKIN[id].split('}').forEach(r=>{ const k=r.indexOf('{'); if(k<0) return;
+    const sels=r.slice(0,k).split(',').map(x=>x.trim().replace(/^@P/,'')); const out=[];
+    sels.forEach(x=>{ out.push(`body.lk-in-${id} .pg:not(.lkp)${x}`); out.push(`.pg.lkp.lk-in-${id}${x}`); });
+    css+=out.join(',')+r.slice(k)+'}\n'; });
+  document.head.insertAdjacentHTML('beforeend',`<style id="lkcss">
+${css}
+/* 裝飾 */
+.lkdeco{isolation:isolate}
+.lkdeco::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:-1}
+.deco-circles::before{background:radial-gradient(circle at 92% 8%,color-mix(in srgb,var(--accent) 28%,transparent) 0 11cqw,transparent 11.1cqw),radial-gradient(circle at 4% 96%,color-mix(in srgb,var(--chalk) 24%,transparent) 0 9cqw,transparent 9.1cqw),radial-gradient(circle at 80% 88%,color-mix(in srgb,var(--accent) 14%,transparent) 0 4cqw,transparent 4.1cqw)}
+.deco-dots::before{background:radial-gradient(color-mix(in srgb,var(--accent) 30%,transparent) 18%,transparent 20%) 0 0/2.6cqw 2.6cqw;-webkit-mask:linear-gradient(135deg,#000 0 16%,transparent 40% 72%,#000 100%);mask:linear-gradient(135deg,#000 0 16%,transparent 40% 72%,#000 100%)}
+.deco-stripes::before{background:repeating-linear-gradient(-45deg,color-mix(in srgb,var(--accent) 14%,transparent) 0 .8cqw,transparent .8cqw 2.4cqw);-webkit-mask:linear-gradient(90deg,transparent 55%,#000);mask:linear-gradient(90deg,transparent 55%,#000)}
+.deco-grid::before{background:linear-gradient(color-mix(in srgb,var(--ink) 7%,transparent) 1px,transparent 1px) 0 0/3cqw 3cqw,linear-gradient(90deg,color-mix(in srgb,var(--ink) 7%,transparent) 1px,transparent 1px) 0 0/3cqw 3cqw}
+.backc.lkdeco{position:relative;container-type:size}
+/* 封面版型（字級用 cqw／cqh，直式、跨頁、16:9 都不跑版） */
+.cvx{flex:1;position:relative;overflow:hidden;container-type:size;background:var(--paper);color:var(--ink);display:flex}
+.cvx>.cvi{flex:1;min-width:0;min-height:0;display:flex;position:relative}
+.cvx h1{font-family:var(--f-display);font-weight:var(--f-dw,900);margin:0;line-height:1.1;text-wrap:balance;font-size:min(10cqw,9cqh)}
+.cvx .sub{font-family:var(--f-display);font-weight:700;color:var(--accent);line-height:1.25;font-size:min(5.4cqw,4.6cqh)}
+.cvx .kk{color:var(--accent);font-weight:800;letter-spacing:.06em;line-height:1.5;font-size:min(3.1cqw,2.6cqh)}
+.cvx .ln{height:min(1.1cqw,1cqh);width:min(18cqw,16cqh);border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--chalk));flex:none}
+.cvx .who{font-family:var(--f-display);font-weight:900;font-size:min(4.4cqw,3.6cqh);line-height:1.3}
+.cvx .who small{display:block;font-family:var(--f-body);font-weight:700;color:var(--ink2);font-size:.52em;margin-top:.3em}
+.cvx .when{font-weight:800;color:var(--ink2);line-height:1.5;font-size:min(3.1cqw,2.6cqh)}
+.cvx .art{position:absolute;pointer-events:none}
+.cvx .art svg{width:100%;height:100%}
+.cvx .fx{display:grid;gap:min(1.6cqw,1.4cqh)}
+.cvx .fx div{border:1px solid var(--line);border-radius:min(2cqw,1.6cqh);padding:min(1.6cqw,1.3cqh) min(2.2cqw,1.8cqh);background:color-mix(in srgb,var(--paper) 85%,transparent)}
+.cvx .fx b{display:block;font-family:var(--f-display);font-weight:900;font-size:min(5cqw,4cqh);line-height:1.2;color:var(--accent)}
+.cvx .fx span{font-size:min(2.6cqw,2.2cqh);color:var(--ink2);font-weight:700}
+.cvx .fx small{display:block;font-size:min(2.2cqw,1.8cqh);color:var(--ink3);font-weight:700;letter-spacing:.2em}
+/* 經典 */
+.cvx-classic>.cvi{flex-direction:column;justify-content:center;gap:min(3cqw,2.6cqh);padding:7cqh 8cqw}
+.cvx-classic .txt{display:flex;flex-direction:column;gap:min(2.4cqw,2cqh)}
+.cvx-classic .fx{grid-template-columns:repeat(3,minmax(0,1fr))}
+.cvx-classic .foot{display:flex;justify-content:space-between;align-items:flex-end;gap:1em;margin-top:auto}
+@container (min-aspect-ratio:1.2){.cvx-classic>.cvi{display:grid;grid-template-columns:1.25fr 1fr;grid-template-rows:1fr auto;align-items:center;column-gap:6cqw}.cvx-classic .fx{grid-template-columns:1fr}.cvx-classic .foot{grid-column:1/-1}}
+/* 極簡 */
+.cvx-minimal>.cvi{flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:min(3cqw,2.6cqh);padding:8cqh 9cqw}
+.cvx-minimal h1{font-size:min(12cqw,11cqh)}
+.cvx-minimal .foot{position:absolute;left:0;right:0;bottom:6cqh;display:flex;justify-content:center;gap:5cqw;align-items:flex-end;text-align:left}
+/* 對半色塊 */
+.cvx-split>.cvi{flex-direction:column}
+.cvx-split .blk{background:var(--accent);color:var(--on-accent,#fff);padding:8cqh 8cqw 6cqh;display:flex;flex-direction:column;justify-content:flex-end;gap:min(2.4cqw,2cqh);flex:0 0 56%}
+.cvx-split .blk .kk,.cvx-split .blk .sub{color:inherit;opacity:.92}
+.cvx-split .blk .ln{background:currentColor;opacity:.6}
+.cvx-split .oth{flex:1;position:relative;display:flex;align-items:flex-end;justify-content:space-between;gap:1em;padding:4cqh 8cqw 6cqh}
+.cvx-split .art{inset:4% 4% 42% 34%;opacity:.8}
+@container (min-aspect-ratio:1.2){.cvx-split>.cvi{flex-direction:row}.cvx-split .blk{flex:0 0 52%;justify-content:center}.cvx-split .oth{flex-direction:column;align-items:flex-start;justify-content:flex-end}.cvx-split .art{inset:4% 4% 34% 4%}}
+/* 黑板 */
+.cvx-board{--paper:var(--board);--ink:var(--board-ink);--ink2:color-mix(in srgb,var(--board-ink) 78%,var(--board));--ink3:color-mix(in srgb,var(--board-ink) 55%,var(--board));--line:color-mix(in srgb,var(--board-ink) 16%,var(--board));
+  background:var(--board);color:var(--board-ink);box-shadow:inset 0 0 0 min(2cqw,1.6cqh) color-mix(in srgb,#8a5a2b 70%,var(--board)),inset 0 0 6cqw rgba(0,0,0,.35)}
+.cvx-board>.cvi{flex-direction:column;padding:8cqh 8cqw 6cqh;gap:min(2.4cqw,2cqh)}
+.cvx-board h1{font-family:"LXGW WenKai TC","Kaiti TC","BiauKai",var(--f-display);text-shadow:0 0 .06em rgba(255,255,255,.35)}
+.cvx-board .art{inset:auto 4% 16% 30%;height:46%;opacity:.75}
+.cvx-board .foot{margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;gap:1em}
+/* 雜誌 */
+.cvx-magazine>.cvi{flex-direction:column;padding:5cqh 6cqw 5cqh;gap:min(2cqw,1.8cqh)}
+.cvx-magazine .mast{display:flex;justify-content:space-between;border-bottom:min(.9cqw,.8cqh) solid var(--ink);padding-bottom:min(1.2cqw,1cqh);font-weight:900;letter-spacing:.24em;font-size:min(2.6cqw,2.2cqh)}
+.cvx-magazine h1{font-size:min(13cqw,10cqh);line-height:1.02;letter-spacing:-.01em}
+.cvx-magazine .cols{display:grid;grid-template-columns:1fr;gap:min(3cqw,2.4cqh);flex:1;min-height:0;overflow:hidden;align-content:start}
+.cvx-magazine .cols .fx{grid-template-columns:repeat(3,minmax(0,1fr))}
+.cvx-magazine ol li:nth-child(n+6){display:none}
+.cvx-magazine ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:min(1cqw,.9cqh);font-size:min(3cqw,2.4cqh);font-weight:700}
+.cvx-magazine ol li{display:flex;gap:.6em;border-bottom:1px solid var(--line);padding-bottom:.25em}
+.cvx-magazine ol li b{color:var(--accent);font-family:var(--f-mono);min-width:2.2em}
+.cvx-magazine .foot{display:flex;justify-content:space-between;align-items:flex-end;gap:1em;border-top:min(.5cqw,.4cqh) solid var(--ink);padding-top:min(1.4cqw,1.2cqh)}
+@container (min-aspect-ratio:1.2){.cvx-magazine .cols{grid-template-columns:1fr 1fr}.cvx-magazine .cols .fx{grid-template-columns:1fr}.cvx-magazine ol li:nth-child(n+6){display:flex}.cvx-magazine ol li:nth-child(n+9){display:none}}
+/* 時間軸 */
+.cvx-timeline>.cvi{flex-direction:column;padding:7cqh 7cqw 5cqh;gap:min(2cqw,1.8cqh)}
+.cvx-timeline .tl{flex:1;min-height:0;position:relative;display:flex;flex-direction:column;justify-content:center;gap:min(1.6cqw,1.4cqh);padding-left:min(5cqw,4cqh)}
+.cvx-timeline .tl::before{content:"";position:absolute;left:min(1.6cqw,1.3cqh);top:8%;bottom:8%;width:min(.7cqw,.6cqh);border-radius:99px;background:linear-gradient(var(--accent),var(--chalk))}
+.cvx-timeline .st{position:relative;font-size:min(3.2cqw,2.6cqh);font-weight:800;line-height:1.3}
+.cvx-timeline .st::before{content:"";position:absolute;left:calc(-1 * min(5cqw,4cqh) + min(.6cqw,.5cqh));top:.3em;width:min(2.6cqw,2.2cqh);height:min(2.6cqw,2.2cqh);border-radius:50%;background:var(--paper);border:min(.6cqw,.5cqh) solid var(--accent)}
+.cvx-timeline .st small{display:block;color:var(--ink3);font-weight:700;font-size:.72em}
+.cvx-timeline .foot{display:flex;justify-content:space-between;align-items:flex-end;gap:1em}
+@container (min-aspect-ratio:1.2){
+ .cvx-timeline .tl{flex-direction:row;align-items:stretch;justify-content:space-between;padding-left:0;gap:1cqw}
+ .cvx-timeline .tl::before{left:1%;right:1%;top:calc(50% - min(.35cqw,.4cqh));bottom:auto;width:auto;height:min(.7cqw,.8cqh)}
+ .cvx-timeline .st{flex:1 1 0;text-align:center;font-size:min(2cqw,3.2cqh);height:50%;align-self:flex-start;display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:4cqh}
+ .cvx-timeline .st:nth-child(even){align-self:flex-end;justify-content:flex-start;padding-bottom:0;padding-top:4cqh}
+ .cvx-timeline .st::before{left:50%;top:auto;bottom:calc(-1 * min(1cqw,1.5cqh));transform:translateX(-50%);width:min(2cqw,3cqh);height:min(2cqw,3cqh);box-sizing:border-box}
+ .cvx-timeline .st:nth-child(even)::before{bottom:auto;top:calc(-1 * min(1cqw,1.5cqh))}}
+/* 水墨直書 */
+.cvx-ink{background:radial-gradient(ellipse at 30% 70%,color-mix(in srgb,var(--ink) 10%,transparent),transparent 55%),radial-gradient(ellipse at 85% 20%,color-mix(in srgb,var(--ink) 7%,transparent),transparent 45%),var(--paper)}
+.cvx-ink>.cvi{justify-content:center;align-items:center;gap:6cqw;padding:7cqh 8cqw;flex-direction:row-reverse}
+.cvx-ink .vt{writing-mode:vertical-rl;display:block;height:74cqh;flex:none;padding-top:2cqh;overflow:visible}
+.cvx-ink .vt h1,.cvx-ink .vt .sub{line-height:1.35;text-orientation:mixed;font-family:"Noto Serif TC","Songti TC","PMingLiU",serif}
+.cvx-ink .vt h1{margin-left:min(2.4cqw,2cqh);text-wrap:wrap}
+.cvx-ink .vt h1{font-size:min(10cqw,8cqh);letter-spacing:.12em}
+.cvx-ink .vt .sub{font-size:min(5cqw,4cqh);letter-spacing:.1em}
+.cvx-ink .seal{position:absolute;right:7cqw;bottom:8cqh;width:min(11cqw,9cqh);height:min(11cqw,9cqh);border:min(.7cqw,.6cqh) solid var(--accent);color:var(--accent);border-radius:min(1.4cqw,1.2cqh);display:flex;align-items:center;justify-content:center;font-family:"LXGW WenKai TC","Kaiti TC",serif;font-weight:900;font-size:min(6.4cqw,5.4cqh);transform:rotate(-4deg)}
+.cvx-ink .side{display:flex;flex-direction:column;gap:min(2cqw,1.8cqh);align-self:flex-end;max-width:46cqw}
+/* 面板 */
+#lkm{position:fixed;inset:0;z-index:91;background:rgba(20,24,36,.45);display:flex;align-items:center;justify-content:center}
+#lkm .pan{background:var(--paper);color:var(--ink);width:min(1180px,96vw);max-height:90vh;display:flex;flex-direction:column;border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.3);overflow:hidden;font-family:var(--f-body,sans-serif)}
+#lkm .hd{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+#lkm .hd b{font-size:17px;flex:1}
+#lkm .hd button,#lkm .ops button{border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:6px 12px;font-weight:800;font-size:13px;cursor:pointer}
+#lkm .hd button.go{background:var(--accent);color:var(--paper);border-color:var(--accent)}
+#lkm .bd{overflow:auto;padding:6px 16px 16px}
+#lkm h5{margin:14px 0 6px;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#lkm h5 small{font-weight:600;color:var(--ink3);font-size:12px}
+#lkm .row{display:flex;flex-wrap:wrap;gap:8px}
+#lkm .pal{border:2px solid var(--line);background:var(--paper);color:var(--ink);border-radius:10px;padding:6px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;font-weight:800;cursor:pointer}
+#lkm .pal i{display:flex;border-radius:6px;overflow:hidden;border:1px solid rgba(0,0,0,.12)}
+#lkm .pal i b{width:16px;height:22px;display:block}
+#lkm .on{border-color:var(--accent)!important;box-shadow:0 0 0 2px var(--accent)}
+#lkm .fnt{border:2px solid var(--line);background:var(--paper);color:var(--ink);border-radius:10px;padding:8px 14px;font-size:18px;cursor:pointer}
+#lkm .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+#lkm .opt{border:2px solid var(--line);background:var(--paper);color:var(--ink);border-radius:10px;padding:6px;cursor:pointer;display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:800;text-align:center}
+#lkm .mini{position:relative;width:100%;aspect-ratio:1123/794;overflow:hidden;border-radius:6px;border:1px solid var(--line);background:var(--paper)}
+#lkm .mini>.pg{position:absolute;left:0;top:0;width:1123px;height:794px;transform-origin:0 0;pointer-events:none;margin:0}
+#lkm .chk{font-size:12px;color:var(--ink2);margin-top:6px}
+#lkm .chk em{font-style:normal;font-weight:800}
+#lkm .note{font-size:12px;color:var(--ink2);line-height:1.6;padding:8px 16px;border-top:1px solid var(--line);background:var(--paper2)}
+</style>`);
+
+  /* ---- 套用 ---- */
+  const root=document.documentElement;
+  function ensureFont(){ if(L.font==='kai'||L.cover==='board'||L.cover==='ink'){ if(!document.getElementById('lkfont')) document.head.insertAdjacentHTML('beforeend','<link id="lkfont" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap">'); } }
+  function apply(rerender){
+    const K=Object.keys(vars(PALS[0].c).v);
+    K.forEach(k=>root.style.removeProperty(k)); root.style.removeProperty('--on-accent'); root.style.removeProperty('color-scheme');
+    if(L.pal){ const V=vars(L.pal); for(const k in V.v) root.style.setProperty(k,V.v[k]); root.setAttribute('data-theme',V.dark?'dark':'light'); root.style.setProperty('color-scheme',V.dark?'dark':'light');
+      root.style.setProperty('--on-accent',contrast(L.pal[3],'#ffffff')>=contrast(L.pal[3],'#111111')?'#ffffff':'#111111'); }
+    else root.removeAttribute('data-theme');
+    const F=FONTS.find(f=>f.id===L.font)||FONTS[0];
+    if(F.id==='serif'){ root.style.removeProperty('--f-display'); root.style.removeProperty('--f-dw'); } else { root.style.setProperty('--f-display',F.d); root.style.setProperty('--f-dw',F.w); }
+    INNERS.forEach(x=>document.body.classList.remove('lk-in-'+x.id)); if(L.inner!=='std') document.body.classList.add('lk-in-'+L.inner);
+    ensureFont();
+    if(rerender){ try{ render(); }catch(e){} }
+  }
+  window.__lookApply=()=>apply(true);
+
+  /* ---- 封面：從原本的封面取出文字，再排成別的版型 ---- */
+  function parts(p0){
+    const t=document.createElement('div'); t.innerHTML=_pi0(p0);
+    const g=s=>t.querySelector(s), h1=g('h1'), sp=h1&&h1.querySelector('span');
+    const title=h1?[...h1.childNodes].filter(n=>n!==sp).map(n=>n.textContent).join('').trim():'';
+    const who=g('.who'), sm=who&&who.querySelector('small');
+    const name=who?[...who.childNodes].filter(n=>n!==sm&&!(n.classList&&n.classList.contains('lb'))).map(n=>n.textContent).join('').trim():'';
+    return {kk:g('.k')?g('.k').innerHTML:'', title, sub:sp?sp.textContent:'', name, role:sm?sm.textContent:'', when:g('.when')?g('.when').innerHTML:'', art:(typeof coverArt==='function')?coverArt():''};
+  }
+  function todayUnits(){
+    try{ return ROUTE.o.filter(k=>!ROUTE.x.includes(k)).map(k=>UNITS.find(U=>U[5]===k)).filter(U=>U&&U[5]!=='附錄'&&U[5]!=='庫'&&U[5]!=='序'); }catch(e){ return []; }
+  }
+  const facts=()=>{ try{ return (META.facts||[]).slice(0,3); }catch(e){ return []; } };
+  function coverHTML(id,deco,p0){
+    const P=parts(p0), W=`<div class="who">${esc(P.name)}<small>${esc(P.role)}</small></div>`, N=`<div class="when">${P.when}</div>`;
+    const H=`<h1>${esc(P.title)}</h1>`, S=P.sub?`<div class="sub">${esc(P.sub)}</div>`:'', K=`<div class="kk">${P.kk}</div>`;
+    const FX=facts().length?`<div class="fx">${facts().map(f=>`<div><small>${esc(f[0])}</small><b>${esc(f[1])}</b><span>${esc(f[2])}</span></div>`).join('')}</div>`:'';
+    const us=todayUnits(); let h='';
+    if(id==='classic') h=`<div class="txt">${K}${H}${S}<div class="ln"></div></div>${FX}<div class="foot">${W}${N}</div>`;
+    else if(id==='minimal') h=`${K}${H}<div class="ln"></div>${S}<div class="foot">${W}${N}</div>`;
+    else if(id==='split') h=`<div class="blk">${K}${H}${S}<div class="ln"></div></div><div class="oth"><div class="art">${P.art}</div>${W}${N}</div>`;
+    else if(id==='board') h=`${K}${H}${S}<div class="ln"></div><div class="art">${P.art}</div><div class="foot">${W}${N}</div>`;
+    else if(id==='magazine') h=`<div class="mast"><span>${esc((CFG.地點||'').replace(/臺南市立|市立/,'')||'研習')}</span><span>${esc(CFG.日期||'')}</span></div>${H}<div class="cols"><div>${S}<div style="height:1.4cqh"></div>${FX}</div><ol>${us.slice(0,8).map(U=>`<li><b>${esc(U[0])}</b><span>${esc(U[1])}</span></li>`).join('')}</ol></div><div class="foot">${W}<div class="kk">${P.kk}</div></div>`;
+    else if(id==='timeline') h=`${K}${H}${S}<div class="tl">${us.slice(0,7).map(U=>`<div class="st">${esc(U[1])}<small>${esc(U[0])}</small></div>`).join('')}</div><div class="foot">${W}${N}</div>`;
+    else if(id==='ink') h=`<div class="vt">${H}${S}</div><div class="side">${K}${W}${N}</div><div class="seal">${esc((P.name||'研').trim().charAt(0))}</div>`;
+    return `<div class="cvx cvx-${id} lkdeco deco-${deco||'none'}"><div class="cvi">${h}</div></div>`;
+  }
+  const _pi0=pageInner;
+  pageInner=function(p){
+    if(p && p.k==='coverL'){
+      if(L.cover==='orig'){ const h=_pi0(p); return L.deco==='none'?h:h.replace('<div class="cov0">','<div class="cov0 lkdeco deco-'+L.deco+'">'); }
+      return coverHTML(L.cover,L.deco,p);
+    }
+    if(p && p.k==='back' && L.deco!=='none') return _pi0(p).replace('<div class="backc">','<div class="backc lkdeco deco-'+L.deco+'">');
+    return _pi0(p);
+  };
+
+  /* ---- 面板 ---- */
+  function sig(){ return [L.palName||'原本',L.font,L.cover,L.inner,L.deco].join('|'); }
+  function set(o){ Object.assign(L,o); save(); apply(true); draw(); }
+  function dice(){
+    const pick=a=>a[Math.floor(Math.random()*a.length)];
+    for(let k=0;k<60;k++){ const rp=Math.random()<.2; const pl=pick(PALS);
+      const o={pal:rp?randomPal():(pl.id==='paper'?null:pl.c.slice()),palName:rp?'隨機':(pl.id==='paper'?'':pl.name),font:pick(FONTS).id,cover:pick(COVERS).id,inner:pick(INNERS).id,deco:pick(DECOS).id};
+      const s=[o.palName||'原本',o.font,o.cover,o.inner,o.deco].join('|'); if(!USED.includes(s)||k===59){ USED.push(s); set(o); return; } }
+  }
+  function mini(el,html,cls){
+    const g=document.createElement('div'); g.className='pg s wide '+(cls||''); g.style.setProperty('--pw','1123px'); g.style.setProperty('--ph','794px'); g.style.setProperty('--pw-n','730');
+    g.innerHTML=html; if(window.__eqWrap) window.__eqWrap(g); el.innerHTML=''; el.appendChild(g);
+    g.style.transform='scale('+(el.clientWidth/1123)+')'; try{ fitPage(g); }catch(e){}
+  }
+  function sample(){ const want=['open','text']; for(const k of want){ const p=PAGES.find(x=>x&&x.k===k&&x.u!=null&&(k!=='text'||(x.items&&x.items.length>1))); if(p) return p; } return PAGES.find(x=>x&&x.u!=null)||PAGES[2]; }
+  function draw(){
+    const box=document.getElementById('lkm'); if(!box||box.hidden) return;
+    const cur=L.pal?L.pal:PALS[0].c, cv=vars(cur).v;
+    const ck=[['文字／書頁',contrast(cur[2],cur[1]),7],['強調色／書頁',contrast(cur[3],cur[1]),3],['輔助色／書頁',contrast(cur[4],cur[1]),3]];
+    const pid=L.pal?(PALS.find(x=>x.c.join()===L.pal.join())||{}).id:'paper';
+    box.querySelector('.bd').innerHTML=`
+      <h5>1　配色<small>整本書的書頁、文字、強調色一起換；投影視窗也會跟著換</small></h5>
+      <div class="row">${PALS.map(x=>`<button class="pal${x.id===pid?' on':''}" data-pal="${x.id}"><i>${x.c.map(c=>`<b style="background:${c}"></b>`).join('')}</i>${x.name}</button>`).join('')}
+        <button class="pal${L.pal&&!pid?' on':''}" data-lk="rnd"><i>${(L.pal&&!pid?L.pal:['#ccc','#eee','#999','#bbb','#ddd']).map(c=>`<b style="background:${c}"></b>`).join('')}</i>🎲 隨機配色</button>
+        <button class="pal" data-lk="flip"><i><b style="background:${cur[1]}"></b><b style="background:${cur[2]}"></b></i>◐ 深淺對調</button></div>
+      <div class="chk">對比檢查：${ck.map(c=>`${c[0]} <em style="color:${c[1]>=c[2]?'var(--c-green)':'var(--c-red)'}">${c[1].toFixed(1)}${c[1]>=c[2]?' ✓':' ✗ 偏低'}</em>`).join('　')}</div>
+      <h5>2　標題字型</h5>
+      <div class="row">${FONTS.map(f=>`<button class="fnt${f.id===L.font?' on':''}" data-font="${f.id}" style="font-family:${f.d.replace(/"/g,"'")};font-weight:${f.w}">${f.name}</button>`).join('')}</div>
+      <h5>3　封面版型<small>文字取自原本的封面（書名、講師、日期）；時間軸、雜誌會列出今天牌組排的單元</small></h5>
+      <div class="grid">${COVERS.map(c=>`<button class="opt${c.id===L.cover?' on':''}" data-cover="${c.id}"><div class="mini" data-mc="${c.id}"></div>${c.name}</button>`).join('')}</div>
+      <h5>　封面裝飾<small>也套用在封底</small></h5>
+      <div class="row">${DECOS.map(d=>`<button class="fnt${d.id===L.deco?' on':''}" data-deco="${d.id}" style="font-size:14px">${d.name}</button>`).join('')}</div>
+      <h5>4　內頁版式<small>只換外觀（頁首、標題、底紋、外框），不換內容和排版順序；講師版、學員版、課後版頁碼都一樣</small></h5>
+      <div class="grid">${INNERS.map(c=>`<button class="opt${c.id===L.inner?' on':''}" data-inner="${c.id}"><div class="mini" data-mi="${c.id}"></div>${c.name}</button>`).join('')}</div>`;
+    const P0=PAGES.find(x=>x&&x.k==='coverL'), S0=sample();
+    box.querySelectorAll('[data-mc]').forEach(el=>{ const id=el.dataset.mc; mini(el, id==='orig'?_pi0(P0).replace('<div class="cov0">','<div class="cov0 lkdeco deco-'+L.deco+'">'):coverHTML(id,L.deco,P0)); });
+    box.querySelectorAll('[data-mi]').forEach(el=>{ const id=el.dataset.mi; mini(el,_pi0(S0),'lkp'+(id==='std'?'':' lk-in-'+id)); });
+  }
+  function open(){
+    let box=document.getElementById('lkm');
+    if(!box){
+      box=document.createElement('div'); box.id='lkm'; box.hidden=true;
+      box.innerHTML=`<div class="pan"><div class="hd"><b>🎨 版面</b><button class="go" data-lk="dice" title="配色、字型、封面、內頁、裝飾一起換，不會重複">🎲 骰一個新樣子</button><button data-lk="reset">還原原本</button><button data-lk="x">關閉 ✕</button></div><div class="bd"></div>
+        <div class="note">${TEACH?'這台電腦會記住你的選擇；投影視窗跟著換。按「👁 學員版」下載學員版／課後版時，<b>目前的版面會一起帶過去</b>，成為學員打開時的預設樣子（學員還是可以自己換）。':'這台裝置會記住你的選擇，不影響別人。'}快捷鍵 C。</div></div>`;
+      document.body.appendChild(box);
+      box.addEventListener('click',e=>{
+        if(e.target===box){ box.hidden=true; return; }
+        const b=e.target.closest('button'); if(!b) return; const d=b.dataset;
+        if(d.lk==='x'){ box.hidden=true; return; }
+        if(d.lk==='reset') return set(Object.assign({},DEF));
+        if(d.lk==='dice') return dice();
+        if(d.lk==='rnd') return set({pal:randomPal(),palName:'隨機'});
+        if(d.lk==='flip') return set({pal:flip(L.pal||PALS[0].c),palName:'對調'});
+        if(d.pal){ const x=PALS.find(p=>p.id===d.pal); return set(x.id==='paper'?{pal:null,palName:''}:{pal:x.c.slice(),palName:x.name}); }
+        if(d.font) return set({font:d.font});
+        if(d.cover) return set({cover:d.cover});
+        if(d.deco) return set({deco:d.deco});
+        if(d.inner) return set({inner:d.inner});
+      });
+    }
+    box.hidden=false; draw();
+  }
+  window.__lookOpen=open;
+  if(!ISAUD){
+    const wbB=document.getElementById('wbOn'), bt=document.createElement('button'); bt.id='bLook'; bt.className='mode'; bt.textContent='🎨 版面'; bt.title='換配色、字型、封面版型、內頁版式（C）';
+    bt.onclick=()=>{ try{ ffStop(); }catch(e){} open(); };
+    if(wbB&&wbB.parentNode) wbB.parentNode.insertBefore(bt,wbB);
+    document.addEventListener('keydown',e=>{ if(e.metaKey||e.ctrlKey||e.altKey) return; if(e.target.closest&&e.target.closest('input,textarea,select,[contenteditable]')) return;
+      if(e.key==='c'||e.key==='C'){ const b=document.getElementById('lkm'); if(b&&!b.hidden) b.hidden=true; else open(); }
+      else if(e.key==='Escape'){ const b=document.getElementById('lkm'); if(b&&!b.hidden) b.hidden=true; } });
+  }
+  /* 投影視窗（同一個檔案、同一台電腦）：講師換版面，投影跟著換 */
+  addEventListener('storage',e=>{ if(e.key!==LK_KEY) return; try{ const s=JSON.parse(e.newValue||'null'); L=Object.assign({},DEF,(s&&s.L)||{}); USED=(s&&s.used)||[]; }catch(err){ L=Object.assign({},DEF); } apply(true); draw(); });
+  apply(true);
+})();
+/*@@LOOK_END@@*/
 </script></body></html>
