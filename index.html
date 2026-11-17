@@ -2982,4 +2982,21 @@ ${css}
   apply(true);
 })();
 /*@@LOOK_END@@*/
+/*@@TAKE@@*/
+/* ---------- 「回班試行包」單元收起或拿掉時，開場的承諾跟著改（修正_試行包連動.py） ---------- */
+(function(){
+  const on=k=>{ try{ const H=ROUTE.h||[]; return ROUTE.o.includes(k)&&!ROUTE.x.includes(k)&&(MODS[k]||[]).some((p,i)=>!H.includes(k+'.'+i)); }catch(e){ return true; } };
+  /* 今天的流程：整個單元的牌都收起來時，流程圖不再列這個單元 */
+  if(typeof flowRows==='function'){ const _fr=flowRows; flowRows=function(){ const F=_fr(), H=ROUTE.h||[]; let t=0;
+    const rows=F.rows.filter(r=>{ const tot=(MODS[r.k]||[]).length; return !(tot && H.filter(h=>h.split('.')[0]===r.k).length>=tot); }).map(r=>{ const q=Object.assign({},r,{s:t}); t+=r.m; return q; });
+    return {rows,total:t}; }; }
+  const _pi=pageInner;
+  pageInner=function(p){
+    let h=_pi(p);
+    if(on('包')) return h;
+    return h.split('提醒・需求投票・試行包').join('提醒・需求投票')
+            .split('研習結束時，帶走一份「回班試行包」').join(on('八')?'研習結束時，帶走一張「兩週試行卡」':'研習結束時，帶走回班就能試的做法');
+  };
+})();
+/*@@TAKE_END@@*/
 </script></body></html>
