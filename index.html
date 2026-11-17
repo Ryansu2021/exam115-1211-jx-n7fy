@@ -1835,7 +1835,7 @@ function navSend(force){
   if(!TEACH||IS_AUD||!INTON||!window.__api) return;
   if(!FOLLOW_TX && !force) return;
   clearTimeout(navT); navT=setTimeout(()=>{
-    const id=FOLLOW_TX?curId():'', r=JSON.stringify({o:ROUTE.o,x:ROUTE.x,c:ROUTE.c,h:ROUTE.h||[],b:BUILD,v:VIS_OV}), sig=id+'|'+r; if(sig===lastNav) return; lastNav=sig;
+    const id=FOLLOW_TX?curId():'', r=JSON.stringify({o:ROUTE.o,x:ROUTE.x,c:ROUTE.c,h:ROUTE.h||[],b:BUILD,v:VIS_OV,lk:(window.__LOOK?window.__LOOK():null)}), sig=id+'|'+r; if(sig===lastNav) return; lastNav=sig;
     window.__api({a:'nav',id,r}).then(()=>{ const t=new Date().toTimeString().slice(0,8); if(FOLLOW_TX) followMsg='已同步：'+t; PUB_MSG='✓ 學員版已同步這個順序（'+t+'）'; flexRender(); dkMsg(); })
       .catch(err=>{ lastNav=''; const m=String(err.message).includes('未知')?'互動後台尚未更新到第 3 版':err.message; followMsg='⚠ '+m; PUB_MSG='⚠ 順序還沒同步給學員：'+m; flexRender(); dkMsg(); });
   },FOLLOW_TX&&!force?700:1200);
@@ -2205,6 +2205,7 @@ function parseNav(nv){
   if(!nv||!nv.r) return null; let r=null; try{ r=JSON.parse(nv.r); }catch(e){ return null; }
   if(!r||!Array.isArray(r.o)) return null;
   if(r.v) setVisRemote(r.v);
+  if(r.lk && window.__lookRemote) window.__lookRemote(r.lk);
   if(r.b && typeof BUILD!=='undefined' && r.b!==BUILD && !OLD_BUILD){ OLD_BUILD=true; toast('講師的講義已經更新，請向講師索取最新的'+(AFTER?'課後版':'學員版')+'檔案。'); }
   return {o:r.o.filter(k=>/^X[0-9a-f]{8}$/.test(k)?!!XIDX[k.slice(1)]:/^Q\d+$/.test(k)?!!BANK[+k.slice(1)]:UKEYS.includes(k)),x:(r.x||[]).filter(k=>UKEYS.includes(k)),c:r.c?1:0,h:(r.h||[]).filter(h=>typeof h==='string')};
 }
@@ -2254,7 +2255,7 @@ setTimeout(()=>{
   dk.addEventListener('contextmenu',e=>{ if(e.target.closest('[data-card]')) e.preventDefault(); });
   const tb=document.querySelector('.tb'), wb=document.getElementById('wbOn');
   const mk=(txt,title,fn)=>{ const x=document.createElement('button'); x.className='mode'; x.textContent=txt; x.title=title; x.onclick=fn; tb.insertBefore(x,wb); return x; };
-  mk('🗺 地圖','回到流程圖（M）',goMap);
+  if(TEACH) mk('🗺 地圖','回到流程圖（M）',goMap);   /* 學員版、課後版不放地圖按鈕 */
   if(TEACH) mk('🃏 牌組',TEACH?'排課牌組：拖曳換順序、收起、從題庫加題（R）':'我的牌組：順序與題庫（R）',()=>{ if(deckIsOpen()) deckClose(); else deckOpen(); });
   if(TEACH) mk('🧭 工具','臨時提問、學員跟隨、紀錄、秘笈',()=>{ const p=document.getElementById('fxp'); if(p.hidden) flexOpen(); else flexClose(); });
   else if(!AFTER && INTON) mk('📡 跟隨','跟隨講師翻頁',()=>{ const p=document.getElementById('fxp'); if(p.hidden) flexOpen('follow'); else flexClose(); });
@@ -2696,6 +2697,36 @@ const m=(location.hash||'').match(/^#p(\d+)$/); if(m) cur=Math.max(0,Math.min(PA
 let rt; addEventListener('resize',()=>{ clearTimeout(rt); rt=setTimeout(()=>{ layout(); if(wbOn) fitCv(); },120); });
 layout();
 if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>render());
+/*@@TAKE@@*/
+/* ---------- 「回班試行包」單元收起或拿掉時（今天不發 A4 試行包），開場的承諾和其他頁提到試行包的地方跟著改（修正_試行包連動.py） ---------- */
+(function(){
+  const on=k=>{ try{ const H=ROUTE.h||[]; return ROUTE.o.includes(k)&&!ROUTE.x.includes(k)&&(MODS[k]||[]).some((p,i)=>!H.includes(k+'.'+i)); }catch(e){ return true; } };
+  /* 今天的流程：整個單元的牌都收起來時，流程圖不再列這個單元 */
+  if(typeof flowRows==='function'){ const _fr=flowRows; flowRows=function(){ const F=_fr(), H=ROUTE.h||[]; let t=0;
+    const rows=F.rows.filter(r=>{ const tot=(MODS[r.k]||[]).length; return !(tot && H.filter(h=>h.split('.')[0]===r.k).length>=tot); }).map(r=>{ const q=Object.assign({},r,{s:t}); t+=r.m; return q; });
+    return {rows,total:t}; }; }
+  /* 不發 A4 試行包時，其他頁提到「試行包」的地方一起改 */
+  const RULES=[
+    ['<div class="h3">試行包：','<div class="h3">'],
+    ['試行包小卷','小卷'],
+    ['學生頁與答案都在 A4 試行包。','學生頁與答案可向講師索取。'],
+    ['題目與答案在試行包。','題目與答案可向講師索取。'],
+    ['寫在試行包的試行卡上','寫在兩週試行卡上'],
+    ['A4 試行包','講師的 A4 列印檔'],
+  ];
+  if(typeof status==='function'){ const _st=status; status=function(){ _st.apply(this,arguments); try{ const c=document.getElementById('chap'); if(c && !on('包') && c.textContent.indexOf('試行包：')>=0) c.textContent=c.textContent.replace('試行包：',''); }catch(e){} }; }
+  const _pi=pageInner;
+  pageInner=function(p){
+    let h=_pi(p);
+    if(on('包')) return h;
+    h=h.split('提醒・需求投票・試行包').join('提醒・需求投票')
+       .split('研習結束時，帶走一份「回班試行包」').join(on('八')?'研習結束時，帶走一張「兩週試行卡」':'研習結束時，帶走回班就能試的做法');
+    if(p && p.u!=null && UNITS[p.u] && UNITS[p.u][5]==='包') return h;   /* 試行包自己的頁（已收起）不動 */
+    RULES.forEach(r=>{ h=h.split(r[0]).join(r[1]); });
+    return h;
+  };
+})();
+/*@@TAKE_END@@*/
 /*@@LOOK@@*/
 /* ---------- 🎨 版面：配色＋字型、封面版型、內頁版式（修正_版面切換.py；做法取自簡報牌庫） ---------- */
 /*LOOK0*/const LOOK0=null;/*LOOK0*/
@@ -2767,11 +2798,11 @@ if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>render(
 
   /* ---- 內頁版式：同一組規則套到整本書（body）或單張預覽（.pg.lkp） ---- */
   const SKIN={
-    card:`@P{background:var(--paper2)}@P .body{background:var(--paper);margin:.15em 1em .2em;border:1px solid var(--line);border-radius:1em;box-shadow:0 .2em .7em rgba(0,0,0,.08)}@P .run .rn{background:var(--chalk);color:var(--paper);border-radius:99px;padding:.05em .7em}@P .folio{padding-bottom:.6em}`,
+    card:`@P{background:var(--paper2)}@P:not(.wide) .body{padding-left:1.5em;padding-right:1.5em}@P .body{background:var(--paper);margin:.1em .55em .15em;border:1px solid var(--line);border-radius:1em;box-shadow:0 .2em .7em rgba(0,0,0,.08)}@P .run .rn{background:var(--chalk);color:var(--paper);border-radius:99px;padding:.05em .7em}@P .folio{padding-bottom:.6em}`,
     band:`@P .run{background:var(--board);color:var(--board-ink);padding-top:.75em;padding-bottom:.6em;margin-bottom:.4em;opacity:1}@P .run .rn{color:var(--accent);filter:brightness(1.25)}@P .h3row .h3,@P .op-name{color:var(--ink)}@P .h3row{border-bottom:2px solid var(--accent);padding-bottom:.25em}@P .folio{color:var(--accent);font-weight:700}`,
     mag:`@P .run{margin:0 2.2em;padding-left:0!important;padding-right:0!important;border-bottom:.18em solid var(--ink);letter-spacing:.22em;color:var(--ink);padding-bottom:.35em}@P .h3row .h3{border-left:.32em solid var(--accent);padding-left:.45em}@P .op-name{font-size:2.6em;letter-spacing:.01em}@P .op-no{color:var(--accent)}@P .folio{font-family:var(--f-display);font-weight:900;font-size:1.25em;color:var(--accent);padding-bottom:.5em}@P .rule{height:.18em;width:100%;background:var(--ink)}`,
     note:`@P{background-color:var(--paper);background-image:linear-gradient(90deg,transparent 2.6em,color-mix(in srgb,var(--accent) 45%,transparent) 2.6em,color-mix(in srgb,var(--accent) 45%,transparent) calc(2.6em + 1px),transparent calc(2.6em + 1px)),repeating-linear-gradient(transparent 0 1.75em,color-mix(in srgb,var(--chalk) 22%,transparent) 1.75em calc(1.75em + 1px))}@P .h3row .h3{background:linear-gradient(transparent 58%,color-mix(in srgb,var(--accent) 28%,transparent) 58%);width:fit-content;padding:0 .2em}@P .op-name{background:linear-gradient(transparent 62%,color-mix(in srgb,var(--accent) 24%,transparent) 62%);width:fit-content}`,
-    frame:`@P{box-shadow:inset 0 0 0 .55em var(--paper),inset 0 0 0 .7em var(--accent),inset 0 0 0 .95em var(--paper),inset 0 0 0 1.02em var(--chalk)}@P .run{padding-top:2.6em;padding-left:3.2em!important;padding-right:3.2em!important}@P .folio{padding-bottom:2.4em;padding-left:3.2em!important;padding-right:3.2em!important}@P .h3row .h3,@P .op-name{text-align:left}`,
+    frame:`@P{box-shadow:inset 0 0 0 .55em var(--paper),inset 0 0 0 .7em var(--accent),inset 0 0 0 .95em var(--paper),inset 0 0 0 1.02em var(--chalk)}@P .run{padding-top:1.9em}@P .folio{padding-bottom:1.6em}@P .h3row .h3,@P .op-name{text-align:left}`,
     mini:`@P .run,@P .folio{color:color-mix(in srgb,var(--ink3) 55%,transparent)}@P .run .rn{color:inherit}@P .rule{height:.12em;width:2.6em;background:var(--ink)}@P .h3row .h3,@P .op-name{font-weight:700;letter-spacing:.03em}@P .mk{background:transparent!important;border:1px solid currentColor!important}`,
   };
   let css='';
@@ -2792,20 +2823,23 @@ ${css}
 /* 封面版型（字級用 cqw／cqh，直式、跨頁、16:9 都不跑版） */
 .cvx{flex:1;position:relative;overflow:hidden;container-type:size;background:var(--paper);color:var(--ink);display:flex}
 .cvx>.cvi{flex:1;min-width:0;min-height:0;display:flex;position:relative}
-.cvx h1{font-family:var(--f-display);font-weight:var(--f-dw,900);margin:0;line-height:1.1;text-wrap:balance;font-size:min(10cqw,9cqh)}
-.cvx .sub{font-family:var(--f-display);font-weight:700;color:var(--accent);line-height:1.25;font-size:min(5.4cqw,4.6cqh)}
-.cvx .kk{color:var(--accent);font-weight:800;letter-spacing:.06em;line-height:1.5;font-size:min(3.1cqw,2.6cqh)}
+.cvx h1{font-family:var(--f-display);font-weight:var(--f-dw,900);margin:0;line-height:1.1;text-wrap:balance;font-size:calc(min(11cqw,10.5cqh) * var(--cvs,1))}
+.cvx .sub{font-family:var(--f-display);font-weight:700;color:var(--accent);line-height:1.25;font-size:calc(min(6.2cqw,5.6cqh) * var(--cvs,1))}
+.cvx .kk{color:var(--accent);font-weight:800;letter-spacing:.06em;line-height:1.5;font-size:calc(min(3.7cqw,3.4cqh) * var(--cvs,1))}
 .cvx .ln{height:min(1.1cqw,1cqh);width:min(18cqw,16cqh);border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--chalk));flex:none}
-.cvx .who{font-family:var(--f-display);font-weight:900;font-size:min(4.4cqw,3.6cqh);line-height:1.3}
-.cvx .who small{display:block;font-family:var(--f-body);font-weight:700;color:var(--ink2);font-size:.52em;margin-top:.3em}
-.cvx .when{font-weight:800;color:var(--ink2);line-height:1.5;font-size:min(3.1cqw,2.6cqh)}
+.cvx .who{font-family:var(--f-display);font-weight:900;font-size:calc(min(5.2cqw,4.8cqh) * var(--cvs,1));line-height:1.3}
+.cvx .who,.cvx .when{white-space:nowrap}
+.cvx .foot{flex-wrap:wrap;row-gap:min(1.6cqw,1.4cqh)}
+.cvx-split .oth{flex-wrap:wrap}
+.cvx .who small{white-space:normal;display:block;font-family:var(--f-body);font-weight:700;color:var(--ink2);font-size:.52em;margin-top:.3em}
+.cvx .when{font-weight:800;color:var(--ink2);line-height:1.5;font-size:calc(min(3.7cqw,3.4cqh) * var(--cvs,1))}
 .cvx .art{position:absolute;pointer-events:none}
 .cvx .art svg{width:100%;height:100%}
 .cvx .fx{display:grid;gap:min(1.6cqw,1.4cqh)}
 .cvx .fx div{border:1px solid var(--line);border-radius:min(2cqw,1.6cqh);padding:min(1.6cqw,1.3cqh) min(2.2cqw,1.8cqh);background:color-mix(in srgb,var(--paper) 85%,transparent)}
-.cvx .fx b{display:block;font-family:var(--f-display);font-weight:900;font-size:min(5cqw,4cqh);line-height:1.2;color:var(--accent)}
-.cvx .fx span{font-size:min(2.6cqw,2.2cqh);color:var(--ink2);font-weight:700}
-.cvx .fx small{display:block;font-size:min(2.2cqw,1.8cqh);color:var(--ink3);font-weight:700;letter-spacing:.2em}
+.cvx .fx b{display:block;font-family:var(--f-display);font-weight:900;font-size:calc(min(5.8cqw,5cqh) * var(--cvs,1));line-height:1.2;color:var(--accent)}
+.cvx .fx span{font-size:calc(min(3.1cqw,2.8cqh) * var(--cvs,1));color:var(--ink2);font-weight:700}
+.cvx .fx small{display:block;font-size:calc(min(2.6cqw,2.3cqh) * var(--cvs,1));color:var(--ink3);font-weight:700;letter-spacing:.2em}
 /* 經典 */
 .cvx-classic>.cvi{flex-direction:column;justify-content:center;gap:min(3cqw,2.6cqh);padding:7cqh 8cqw}
 .cvx-classic .txt{display:flex;flex-direction:column;gap:min(2.4cqw,2cqh)}
@@ -2814,7 +2848,7 @@ ${css}
 @container (min-aspect-ratio:1.2){.cvx-classic>.cvi{display:grid;grid-template-columns:1.25fr 1fr;grid-template-rows:1fr auto;align-items:center;column-gap:6cqw}.cvx-classic .fx{grid-template-columns:1fr}.cvx-classic .foot{grid-column:1/-1}}
 /* 極簡 */
 .cvx-minimal>.cvi{flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:min(3cqw,2.6cqh);padding:8cqh 9cqw}
-.cvx-minimal h1{font-size:min(12cqw,11cqh)}
+.cvx-minimal h1{font-size:calc(min(13cqw,12.5cqh) * var(--cvs,1))}
 .cvx-minimal .foot{position:absolute;left:0;right:0;bottom:6cqh;display:flex;justify-content:center;gap:5cqw;align-items:flex-end;text-align:left}
 /* 對半色塊 */
 .cvx-split>.cvi{flex-direction:column}
@@ -2833,12 +2867,12 @@ ${css}
 .cvx-board .foot{margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;gap:1em}
 /* 雜誌 */
 .cvx-magazine>.cvi{flex-direction:column;padding:5cqh 6cqw 5cqh;gap:min(2cqw,1.8cqh)}
-.cvx-magazine .mast{display:flex;justify-content:space-between;border-bottom:min(.9cqw,.8cqh) solid var(--ink);padding-bottom:min(1.2cqw,1cqh);font-weight:900;letter-spacing:.24em;font-size:min(2.6cqw,2.2cqh)}
-.cvx-magazine h1{font-size:min(13cqw,10cqh);line-height:1.02;letter-spacing:-.01em}
+.cvx-magazine .mast{display:flex;justify-content:space-between;border-bottom:min(.9cqw,.8cqh) solid var(--ink);padding-bottom:min(1.2cqw,1cqh);font-weight:900;letter-spacing:.24em;font-size:calc(min(3.1cqw,2.8cqh) * var(--cvs,1))}
+.cvx-magazine h1{font-size:calc(min(14cqw,11.5cqh) * var(--cvs,1));line-height:1.02;letter-spacing:-.01em}
 .cvx-magazine .cols{display:grid;grid-template-columns:1fr;gap:min(3cqw,2.4cqh);flex:1;min-height:0;overflow:hidden;align-content:start}
 .cvx-magazine .cols .fx{grid-template-columns:repeat(3,minmax(0,1fr))}
 .cvx-magazine ol li:nth-child(n+6){display:none}
-.cvx-magazine ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:min(1cqw,.9cqh);font-size:min(3cqw,2.4cqh);font-weight:700}
+.cvx-magazine ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:min(1cqw,.9cqh);font-size:calc(min(3.5cqw,3.1cqh) * var(--cvs,1));font-weight:700}
 .cvx-magazine ol li{display:flex;gap:.6em;border-bottom:1px solid var(--line);padding-bottom:.25em}
 .cvx-magazine ol li b{color:var(--accent);font-family:var(--f-mono);min-width:2.2em}
 .cvx-magazine .foot{display:flex;justify-content:space-between;align-items:flex-end;gap:1em;border-top:min(.5cqw,.4cqh) solid var(--ink);padding-top:min(1.4cqw,1.2cqh)}
@@ -2847,14 +2881,14 @@ ${css}
 .cvx-timeline>.cvi{flex-direction:column;padding:7cqh 7cqw 5cqh;gap:min(2cqw,1.8cqh)}
 .cvx-timeline .tl{flex:1;min-height:0;position:relative;display:flex;flex-direction:column;justify-content:center;gap:min(1.6cqw,1.4cqh);padding-left:min(5cqw,4cqh)}
 .cvx-timeline .tl::before{content:"";position:absolute;left:min(1.6cqw,1.3cqh);top:8%;bottom:8%;width:min(.7cqw,.6cqh);border-radius:99px;background:linear-gradient(var(--accent),var(--chalk))}
-.cvx-timeline .st{position:relative;font-size:min(3.2cqw,2.6cqh);font-weight:800;line-height:1.3}
+.cvx-timeline .st{position:relative;font-size:calc(min(3.7cqw,3.3cqh) * var(--cvs,1) * var(--tls,1));font-weight:800;line-height:1.3}
 .cvx-timeline .st::before{content:"";position:absolute;left:calc(-1 * min(5cqw,4cqh) + min(.6cqw,.5cqh));top:.3em;width:min(2.6cqw,2.2cqh);height:min(2.6cqw,2.2cqh);border-radius:50%;background:var(--paper);border:min(.6cqw,.5cqh) solid var(--accent)}
 .cvx-timeline .st small{display:block;color:var(--ink3);font-weight:700;font-size:.72em}
 .cvx-timeline .foot{display:flex;justify-content:space-between;align-items:flex-end;gap:1em}
 @container (min-aspect-ratio:1.2){
  .cvx-timeline .tl{flex-direction:row;align-items:stretch;justify-content:space-between;padding-left:0;gap:1cqw}
  .cvx-timeline .tl::before{left:1%;right:1%;top:calc(50% - min(.35cqw,.4cqh));bottom:auto;width:auto;height:min(.7cqw,.8cqh)}
- .cvx-timeline .st{flex:1 1 0;text-align:center;font-size:min(2cqw,3.2cqh);height:50%;align-self:flex-start;display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:4cqh}
+ .cvx-timeline .st{flex:1 1 0;text-align:center;font-size:calc(min(2.3cqw,3.8cqh) * var(--cvs,1) * var(--tls,1));height:50%;align-self:flex-start;display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:4cqh}
  .cvx-timeline .st:nth-child(even){align-self:flex-end;justify-content:flex-start;padding-bottom:0;padding-top:4cqh}
  .cvx-timeline .st::before{left:50%;top:auto;bottom:calc(-1 * min(1cqw,1.5cqh));transform:translateX(-50%);width:min(2cqw,3cqh);height:min(2cqw,3cqh);box-sizing:border-box}
  .cvx-timeline .st:nth-child(even)::before{bottom:auto;top:calc(-1 * min(1cqw,1.5cqh))}}
@@ -2864,9 +2898,9 @@ ${css}
 .cvx-ink .vt{writing-mode:vertical-rl;display:block;height:74cqh;flex:none;padding-top:2cqh;overflow:visible}
 .cvx-ink .vt h1,.cvx-ink .vt .sub{line-height:1.35;text-orientation:mixed;font-family:"Noto Serif TC","Songti TC","PMingLiU",serif}
 .cvx-ink .vt h1{margin-left:min(2.4cqw,2cqh);text-wrap:wrap}
-.cvx-ink .vt h1{font-size:min(10cqw,8cqh);letter-spacing:.12em}
-.cvx-ink .vt .sub{font-size:min(5cqw,4cqh);letter-spacing:.1em}
-.cvx-ink .seal{position:absolute;right:7cqw;bottom:8cqh;width:min(11cqw,9cqh);height:min(11cqw,9cqh);border:min(.7cqw,.6cqh) solid var(--accent);color:var(--accent);border-radius:min(1.4cqw,1.2cqh);display:flex;align-items:center;justify-content:center;font-family:"LXGW WenKai TC","Kaiti TC",serif;font-weight:900;font-size:min(6.4cqw,5.4cqh);transform:rotate(-4deg)}
+.cvx-ink .vt h1{font-size:calc(min(10cqw,8cqh) * var(--cvs,1));letter-spacing:.12em}
+.cvx-ink .vt .sub{font-size:calc(min(5.8cqw,5cqh) * var(--cvs,1));letter-spacing:.1em}
+.cvx-ink .seal{position:absolute;right:7cqw;bottom:8cqh;width:min(11cqw,9cqh);height:min(11cqw,9cqh);border:min(.7cqw,.6cqh) solid var(--accent);color:var(--accent);border-radius:min(1.4cqw,1.2cqh);display:flex;align-items:center;justify-content:center;font-family:"LXGW WenKai TC","Kaiti TC",serif;font-weight:900;font-size:calc(min(6.4cqw,5.4cqh) * var(--cvs,1));transform:rotate(-4deg)}
 .cvx-ink .side{display:flex;flex-direction:column;gap:min(2cqw,1.8cqh);align-self:flex-end;max-width:46cqw}
 /* 面板 */
 #lkm{position:fixed;inset:0;z-index:91;background:rgba(20,24,36,.45);display:flex;align-items:center;justify-content:center}
@@ -2937,6 +2971,15 @@ ${css}
     else if(id==='ink') h=`<div class="vt">${H}${S}</div><div class="side">${K}${W}${N}</div><div class="seal">${esc((P.name||'研').trim().charAt(0))}</div>`;
     return `<div class="cvx cvx-${id} lkdeco deco-${deco||'none'}"><div class="cvi">${h}</div></div>`;
   }
+  /* 封面自動調字級：先放大，超出版面才縮小（直式、跨頁、16:9 都一樣滿） */
+  function fitCover(el){ const c=el.querySelector('.cvx>.cvi'); if(!c) return; const box=c.parentNode;
+    const over=()=>c.scrollHeight>c.clientHeight+1||c.scrollWidth>c.clientWidth+1||[...c.querySelectorAll('.blk,.oth,.cols,.foot,.txt,.side')].some(x=>x.scrollHeight>x.clientHeight+1||x.scrollWidth>x.clientWidth+1)
+      ||(()=>{ const h=c.querySelector('.vt h1'); if(!h) return false; const fs=parseFloat(getComputedStyle(h).fontSize); return h.getBoundingClientRect().width>fs*1.9; })();
+    box.style.setProperty('--tls',1);
+    for(const k of [1.3,1.2,1.1,1,.92,.85,.78,.7,.62]){ box.style.setProperty('--cvs',k); if(!over()) break; }
+    if(c.querySelector('.tl')){ const o2=()=>[...c.querySelectorAll('.tl,.st')].some(x=>x.scrollHeight>x.clientHeight+1||x.scrollWidth>x.clientWidth+1);   /* 時間軸的單元名稱另外縮，不拖累書名 */
+      for(const k of [1,.9,.8,.72,.64,.56,.5]){ box.style.setProperty('--tls',k); if(!o2()) break; } } }
+  if(typeof fitPage==='function'){ const _fp=fitPage; fitPage=function(el){ _fp(el); try{ fitCover(el); }catch(e){} }; }
   const _pi0=pageInner;
   pageInner=function(p){
     if(p && p.k==='coverL'){
@@ -2949,7 +2992,12 @@ ${css}
 
   /* ---- 面板 ---- */
   function sig(){ return [L.palName||'原本',L.font,L.cover,L.inner,L.deco].join('|'); }
-  function set(o){ Object.assign(L,o); save(); apply(true); draw(); }
+  function set(o){ Object.assign(L,o); save(); apply(true); draw();
+    if(TEACH){ try{ if(typeof navSend==='function') navSend(true); }catch(e){} } }   /* 連著研習互動頁時，學員版跟著換 */
+  /* 學員版、課後版：收到講師的版面（跟隨同步）就照著換 */
+  window.__lookRemote=lk=>{ if(TEACH||!lk||typeof lk!=='object') return; const n=Object.assign({},DEF,lk);
+    if(JSON.stringify(n)===JSON.stringify(Object.assign({},DEF,{pal:L.pal,palName:L.palName,font:L.font,cover:L.cover,inner:L.inner,deco:L.deco}))) return;
+    L=n; save(); apply(true); };
   function dice(){
     const pick=a=>a[Math.floor(Math.random()*a.length)];
     for(let k=0;k<60;k++){ const rp=Math.random()<.2; const pl=pick(PALS);
@@ -3010,7 +3058,7 @@ ${css}
     box.hidden=false; draw();
   }
   window.__lookOpen=open;
-  if(!ISAUD){
+  if(!ISAUD && TEACH){   /* 學員版、課後版不放「🎨 版面」按鈕（照講師下載時的版面顯示） */
     const wbB=document.getElementById('wbOn'), bt=document.createElement('button'); bt.id='bLook'; bt.className='mode'; bt.textContent='🎨 版面'; bt.title='換配色、字型、封面版型、內頁版式（C）';
     bt.onclick=()=>{ try{ ffStop(); }catch(e){} open(); };
     if(wbB&&wbB.parentNode) wbB.parentNode.insertBefore(bt,wbB);
@@ -3023,34 +3071,4 @@ ${css}
   apply(true);
 })();
 /*@@LOOK_END@@*/
-/*@@TAKE@@*/
-/* ---------- 「回班試行包」單元收起或拿掉時（今天不發 A4 試行包），開場的承諾和其他頁提到試行包的地方跟著改（修正_試行包連動.py） ---------- */
-(function(){
-  const on=k=>{ try{ const H=ROUTE.h||[]; return ROUTE.o.includes(k)&&!ROUTE.x.includes(k)&&(MODS[k]||[]).some((p,i)=>!H.includes(k+'.'+i)); }catch(e){ return true; } };
-  /* 今天的流程：整個單元的牌都收起來時，流程圖不再列這個單元 */
-  if(typeof flowRows==='function'){ const _fr=flowRows; flowRows=function(){ const F=_fr(), H=ROUTE.h||[]; let t=0;
-    const rows=F.rows.filter(r=>{ const tot=(MODS[r.k]||[]).length; return !(tot && H.filter(h=>h.split('.')[0]===r.k).length>=tot); }).map(r=>{ const q=Object.assign({},r,{s:t}); t+=r.m; return q; });
-    return {rows,total:t}; }; }
-  /* 不發 A4 試行包時，其他頁提到「試行包」的地方一起改 */
-  const RULES=[
-    ['<div class="h3">試行包：','<div class="h3">'],
-    ['試行包小卷','小卷'],
-    ['學生頁與答案都在 A4 試行包。','學生頁與答案可向講師索取。'],
-    ['題目與答案在試行包。','題目與答案可向講師索取。'],
-    ['寫在試行包的試行卡上','寫在兩週試行卡上'],
-    ['A4 試行包','講師的 A4 列印檔'],
-  ];
-  if(typeof status==='function'){ const _st=status; status=function(){ _st.apply(this,arguments); try{ const c=document.getElementById('chap'); if(c && !on('包') && c.textContent.indexOf('試行包：')>=0) c.textContent=c.textContent.replace('試行包：',''); }catch(e){} }; }
-  const _pi=pageInner;
-  pageInner=function(p){
-    let h=_pi(p);
-    if(on('包')) return h;
-    h=h.split('提醒・需求投票・試行包').join('提醒・需求投票')
-       .split('研習結束時，帶走一份「回班試行包」').join(on('八')?'研習結束時，帶走一張「兩週試行卡」':'研習結束時，帶走回班就能試的做法');
-    if(p && p.u!=null && UNITS[p.u] && UNITS[p.u][5]==='包') return h;   /* 試行包自己的頁（已收起）不動 */
-    RULES.forEach(r=>{ h=h.split(r[0]).join(r[1]); });
-    return h;
-  };
-})();
-/*@@TAKE_END@@*/
 </script></body></html>
