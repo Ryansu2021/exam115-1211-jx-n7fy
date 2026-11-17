@@ -2983,19 +2983,32 @@ ${css}
 })();
 /*@@LOOK_END@@*/
 /*@@TAKE@@*/
-/* ---------- 「回班試行包」單元收起或拿掉時，開場的承諾跟著改（修正_試行包連動.py） ---------- */
+/* ---------- 「回班試行包」單元收起或拿掉時（今天不發 A4 試行包），開場的承諾和其他頁提到試行包的地方跟著改（修正_試行包連動.py） ---------- */
 (function(){
   const on=k=>{ try{ const H=ROUTE.h||[]; return ROUTE.o.includes(k)&&!ROUTE.x.includes(k)&&(MODS[k]||[]).some((p,i)=>!H.includes(k+'.'+i)); }catch(e){ return true; } };
   /* 今天的流程：整個單元的牌都收起來時，流程圖不再列這個單元 */
   if(typeof flowRows==='function'){ const _fr=flowRows; flowRows=function(){ const F=_fr(), H=ROUTE.h||[]; let t=0;
     const rows=F.rows.filter(r=>{ const tot=(MODS[r.k]||[]).length; return !(tot && H.filter(h=>h.split('.')[0]===r.k).length>=tot); }).map(r=>{ const q=Object.assign({},r,{s:t}); t+=r.m; return q; });
     return {rows,total:t}; }; }
+  /* 不發 A4 試行包時，其他頁提到「試行包」的地方一起改 */
+  const RULES=[
+    ['<div class="h3">試行包：','<div class="h3">'],
+    ['試行包小卷','小卷'],
+    ['學生頁與答案都在 A4 試行包。','學生頁與答案可向講師索取。'],
+    ['題目與答案在試行包。','題目與答案可向講師索取。'],
+    ['寫在試行包的試行卡上','寫在兩週試行卡上'],
+    ['A4 試行包','講師的 A4 列印檔'],
+  ];
+  if(typeof status==='function'){ const _st=status; status=function(){ _st.apply(this,arguments); try{ const c=document.getElementById('chap'); if(c && !on('包') && c.textContent.indexOf('試行包：')>=0) c.textContent=c.textContent.replace('試行包：',''); }catch(e){} }; }
   const _pi=pageInner;
   pageInner=function(p){
     let h=_pi(p);
     if(on('包')) return h;
-    return h.split('提醒・需求投票・試行包').join('提醒・需求投票')
-            .split('研習結束時，帶走一份「回班試行包」').join(on('八')?'研習結束時，帶走一張「兩週試行卡」':'研習結束時，帶走回班就能試的做法');
+    h=h.split('提醒・需求投票・試行包').join('提醒・需求投票')
+       .split('研習結束時，帶走一份「回班試行包」').join(on('八')?'研習結束時，帶走一張「兩週試行卡」':'研習結束時，帶走回班就能試的做法');
+    if(p && p.u!=null && UNITS[p.u] && UNITS[p.u][5]==='包') return h;   /* 試行包自己的頁（已收起）不動 */
+    RULES.forEach(r=>{ h=h.split(r[0]).join(r[1]); });
+    return h;
   };
 })();
 /*@@TAKE_END@@*/
