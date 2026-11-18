@@ -1267,7 +1267,7 @@ const normR = r=>{ const o=r.o.slice(), x=(r.x||[]).slice(); LAYERS.forEach(L=>{
 /*@@M20@@*/  if(!o.includes('廿')){ const i=o.indexOf('一'); o.splice(i<0?o.length:i,0,'廿'); if(!x.includes('廿')) x.push('廿'); }/*@@M20_END@@*/
   if(!o.includes('包')){ o.push('包'); if(!o.includes('八') && !x.includes('包')) x.push('包'); }
   r.h=Array.isArray(r.h)?r.h:[];
-  NQK.forEach(L=>{ if(!o.includes(L)){ const j=o.indexOf('七'); o.splice(j<0?o.length:j,0,L); if(!x.includes(L)) x.push(L); } }); return Object.assign({},r,{o,x,h:(r.h||[]).slice()}); };
+  NQK.forEach(L=>{ if(!o.includes(L)){ const j=o.indexOf('七'); o.splice(j<0?o.length:j,0,L); if(!x.includes(L)) x.push(L); } }); return Object.assign({},r,{o,x,h:(r.h||[]).slice(),p:(r.p&&typeof r.p==='object'&&!Array.isArray(r.p))?JSON.parse(JSON.stringify(r.p)):{}}); };
 /*ROUTE0*/const ROUTE0={"o":["序","廿","一","三","四","精","基","待","五","六","N1","N2","N3","N4","N5","N6","N7","N8","N9","N10","七","八","包"],"x":["精","基","待","廿","N1","N2","N3","N4","N5","N6","N7","N8","N9","N10"],"c":0,"h":[]};/*ROUTE0*/
 let ROUTE=normR((!TEACH&&ROUTE0&&Array.isArray(ROUTE0.o))?ROUTE0:{o:DEF_ORDER.slice(),x:[],c:0});
 try{ const r=JSON.parse(localStorage.getItem(ROUTE_KEY)||'null'); if(r&&Array.isArray(r.o)) ROUTE=normR(r); }catch(e){}
@@ -1279,7 +1279,7 @@ function buildPages(){
     if(/^X[0-9a-f]{8}$/.test(k)){ const xp=xPage(k); if(xp) body.push(xp); return; }
     if(/^Q\d+$/.test(k)){ body.push(...bankPages(+k.slice(1))); return; }
     if(!MODS[k]||ROUTE.x.includes(k)) return;
-    body.push(...MODS[k].filter((p,i)=>!(ROUTE.c&&p.ext) && !(ROUTE.h||[]).includes(k+'.'+i)));
+    body.push(...pgList(k).filter(x=>!(ROUTE.c&&x.p.ext) && !(x.own && (ROUTE.h||[]).includes(x.ref))).map(x=>x.cp)); /*PGORD*/
   });
   const seen=[]; body.forEach(p=>{ if(p.u!=null && !seen.includes(p.u)) seen.push(p.u); });
   const ax=UNITS.findIndex(u=>u[5]==='附錄');
@@ -1688,7 +1688,7 @@ function unitKeyAt(i){ for(let j=i;j>=0;j--){ const p=PAGES[j]; if(p&&p.xk) retu
 function saveRoute(){ try{ localStorage.setItem(ROUTE_KEY,JSON.stringify(ROUTE)); }catch(e){} }
 function applyRoute(r,o){
   o=o||{}; const keep=o.keepId||curId();
-  ROUTE=normR({o:r.o.slice(),x:(r.x||[]).slice(),c:r.c?1:0,h:(r.h!=null?r.h:(ROUTE.h||[])).slice()});
+  ROUTE=normR({o:r.o.slice(),x:(r.x||[]).slice(),c:r.c?1:0,h:(r.h!=null?r.h:(ROUTE.h||[])).slice(),p:(r.p!=null?r.p:(ROUTE.p||{}))});
   if(!o.remote) saveRoute();
   if(!TEACH && !o.remote && !o.fromT) setMine(true);
   buildPages();
@@ -1835,7 +1835,7 @@ function navSend(force){
   if(!TEACH||IS_AUD||!INTON||!window.__api) return;
   if(!FOLLOW_TX && !force) return;
   clearTimeout(navT); navT=setTimeout(()=>{
-    const id=FOLLOW_TX?curId():'', r=JSON.stringify({o:ROUTE.o,x:ROUTE.x,c:ROUTE.c,h:ROUTE.h||[],b:BUILD,v:VIS_OV,lk:(window.__LOOK?window.__LOOK():null)}), sig=id+'|'+r; if(sig===lastNav) return; lastNav=sig;
+    const id=FOLLOW_TX?curId():'', r=JSON.stringify({o:ROUTE.o,x:ROUTE.x,c:ROUTE.c,h:ROUTE.h||[],p:ROUTE.p||{},b:BUILD,v:VIS_OV,lk:(window.__LOOK?window.__LOOK():null)}), sig=id+'|'+r; if(sig===lastNav) return; lastNav=sig;
     window.__api({a:'nav',id,r}).then(()=>{ const t=new Date().toTimeString().slice(0,8); if(FOLLOW_TX) followMsg='已同步：'+t; PUB_MSG='✓ 學員版已同步這個順序（'+t+'）'; flexRender(); dkMsg(); })
       .catch(err=>{ lastNav=''; const m=String(err.message).includes('未知')?'互動後台尚未更新到第 3 版':err.message; followMsg='⚠ '+m; PUB_MSG='⚠ 順序還沒同步給學員：'+m; flexRender(); dkMsg(); });
   },FOLLOW_TX&&!force?700:1200);
@@ -1877,7 +1877,7 @@ function startAdhoc(){
     .catch(err=>{ msgEl.textContent='⚠ '+err.message; });
 }
 /* ---------- 事件 ---------- */
-function keepQ(r){ const o=r.o.slice(); ROUTE.o.forEach((k,i)=>{ if(/^Q\d+$/.test(k) && !o.includes(k)){ const prev=ROUTE.o.slice(0,i).reverse().find(x=>o.includes(x)); o.splice(prev?o.indexOf(prev)+1:o.length,0,k); } }); return {o,x:r.x,c:r.c,h:r.h}; }
+function keepQ(r){ const o=r.o.slice(); ROUTE.o.forEach((k,i)=>{ if(/^Q\d+$/.test(k) && !o.includes(k)){ const prev=ROUTE.o.slice(0,i).reverse().find(x=>o.includes(x)); o.splice(prev?o.indexOf(prev)+1:o.length,0,k); } }); return {o,x:r.x,c:r.c,h:r.h,p:r.p}; }
 function moveKey(k,d){ const o=ROUTE.o.slice(), i=o.indexOf(k), j=i+d; if(i<0||j<0||j>=o.length) return; [o[i],o[j]]=[o[j],o[i]]; applyRoute({o,x:ROUTE.x,c:ROUTE.c}); }
 function onFx(e){
   const tb=e.target.closest('[data-tab]'); if(tb){ FX_TAB=tb.dataset.tab; flexRender(); return; }
@@ -1886,7 +1886,7 @@ function onFx(e){
   if(f==='close') return flexClose();
   if(f==='map') return goMap();
   if(f==='deck') return deckOpen();
-  if(f==='pre'){ const r=Object.assign({h:+b.dataset.i===0?[]:ROUTE.h},PRESETS[+b.dataset.i][1]); return applyRoute(ROUTE.o.includes('選')||r.o.includes('選')?{o:r.o.slice(),x:r.x.slice(),c:r.c,h:r.h}:keepQ(r)); }
+  if(f==='pre'){ const r=Object.assign({h:+b.dataset.i===0?[]:ROUTE.h,p:+b.dataset.i===0?{}:ROUTE.p},PRESETS[+b.dataset.i][1]); return applyRoute(ROUTE.o.includes('選')||r.o.includes('選')?{o:r.o.slice(),x:r.x.slice(),c:r.c,h:r.h,p:r.p}:keepQ(r)); }
   if(f==='need') return applyRoute(keepQ(PRESETS[NEED_MAP[k]][1]));
   if(f==='needread'){ if(!window.__api) return; window.__api({a:'results',id:'need',type:'vote',rid:'need'}).then(d=>{ const top=(d.res&&d.res.items&&d.res.items[0]); if(top && NEED_MAP[top[0]]!=null){ applyRoute(keepQ(PRESETS[NEED_MAP[top[0]]][1])); followMsg=''; } else alertBox('還沒有需求投票的結果。'); }).catch(err=>alertBox('⚠ '+err.message)); return; }
   if(f==='up') return moveKey(k,-1);
@@ -2194,7 +2194,7 @@ const TR_KEY='flexTR_'+(CFG.場次代號||'')+(AFTER?'_a':'_s'), MINE_KEY='flexM
 let MINE=false, TSIG='', OLD_BUILD=false, syncT=null;
 try{ MINE=localStorage.getItem(MINE_KEY)==='1'; TSIG=localStorage.getItem(TR_KEY)||''; }catch(e){}
 function setMine(v){ MINE=!!v; try{ localStorage.setItem(MINE_KEY,v?'1':'0'); }catch(e){} }
-const routeSig = r=>JSON.stringify({o:r.o,x:r.x||[],c:r.c?1:0,h:r.h||[]});
+const routeSig = r=>JSON.stringify({o:r.o,x:r.x||[],c:r.c?1:0,h:r.h||[],p:r.p||{}});
 function toast(t,adopt,ms){
   let b=document.getElementById('fxtoast'); if(!b){ b=document.createElement('div'); b.id='fxtoast'; document.body.appendChild(b);
     b.addEventListener('click',e=>{ const x=e.target.closest('button'); if(!x) return; if(x.dataset.a==='adopt') adoptTeacher(); b.hidden=true; }); }
@@ -2207,7 +2207,7 @@ function parseNav(nv){
   if(r.v) setVisRemote(r.v);
   if(r.lk && window.__lookRemote) window.__lookRemote(r.lk);
   if(r.b && typeof BUILD!=='undefined' && r.b!==BUILD && !OLD_BUILD){ OLD_BUILD=true; toast('講師的講義已經更新，請向講師索取最新的'+(AFTER?'課後版':'學員版')+'檔案。'); }
-  return {o:r.o.filter(k=>/^X[0-9a-f]{8}$/.test(k)?!!XIDX[k.slice(1)]:/^Q\d+$/.test(k)?!!BANK[+k.slice(1)]:UKEYS.includes(k)),x:(r.x||[]).filter(k=>UKEYS.includes(k)),c:r.c?1:0,h:(r.h||[]).filter(h=>typeof h==='string')};
+  return {o:r.o.filter(k=>/^X[0-9a-f]{8}$/.test(k)?!!XIDX[k.slice(1)]:/^Q\d+$/.test(k)?!!BANK[+k.slice(1)]:UKEYS.includes(k)),x:(r.x||[]).filter(k=>UKEYS.includes(k)),c:r.c?1:0,h:(r.h||[]).filter(h=>typeof h==='string'),p:(r.p&&typeof r.p==='object'&&!Array.isArray(r.p))?r.p:{}};
 }
 function adopt(route,keepId){ TSIG=routeSig(route); try{ localStorage.setItem(TR_KEY,TSIG); }catch(e){} setMine(false); applyRoute(route,keepId?{fromT:1,keepId}:{fromT:1}); }
 /* 收到講師的順序：沒自己改過就直接套用；自己改過就詢問 */
@@ -3071,4 +3071,99 @@ ${css}
   apply(true);
 })();
 /*@@LOOK_END@@*/
+/*@@PGORD@@*/
+/* ---------- 🃏 牌組：單元內的頁可以換順序、插入別的單元的頁（修正_牌組內頁.py） ---------- */
+/* ROUTE.p = { 單元代號: ['單元.第幾頁', …] }：只記有改過的單元。別的單元的頁是「複製一張插進來」，原單元照常有。 */
+function pgDefault(k){ return (MODS[k]||[]).map((_,i)=>k+'.'+i); }
+function pgList(k){
+  const P=ROUTE.p||{}, own=pgDefault(k);
+  let refs=Array.isArray(P[k])?P[k].slice():own.slice();
+  own.forEach(r=>{ if(!refs.includes(r)) refs.push(r); });   /* 原單元新增的頁補在最後 */
+  const u=UKEYS.indexOf(k), out=[];
+  refs.forEach(ref=>{ const j=ref.lastIndexOf('.'), k2=ref.slice(0,j), i=+ref.slice(j+1), p=(MODS[k2]||[])[i]; if(!p) return;
+    const isOwn=k2===k;
+    out.push({ref,own:isOwn,k2,i,p,cp:isOwn?p:Object.assign({},p,{u,id:p.id+'@'+k,cpOf:ref})}); });
+  return out;
+}
+(function(){
+  if(typeof document==='undefined') return;
+  document.head.insertAdjacentHTML('beforeend',`<style id="pgordcss">
+#fxd .pgt2{position:relative;display:flex;flex-direction:column;gap:4px;cursor:pointer;user-select:none}
+#fxd .pgt2.ins{outline:2px dashed var(--chalk);outline-offset:-2px}
+#fxd .pgt2 .pgfrom{font-size:11px;color:var(--chalk);font-weight:800}
+#fxd .pgt2 .pgo{display:flex;gap:4px;justify-content:center}
+#fxd .pgt2 .pgo button{border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:1px 9px;font-size:12px;font-weight:800;cursor:pointer}
+#fxd .pgt2 .pgo button:hover{border-color:var(--accent)}
+#fxd .pgt2.dragging{opacity:.35}
+#fxd .pgt2.dropL{box-shadow:-4px 0 0 var(--accent)}#fxd .pgt2.dropR{box-shadow:4px 0 0 var(--accent)}
+#fxd .pgpick{margin-top:12px;padding:10px;border:2px dashed var(--chalk);border-radius:12px;background:var(--paper2)}
+#fxd .pgpick .dk-row{gap:8px;align-items:center;flex-wrap:wrap}
+#fxd .pgpick select{font-size:14px;padding:4px 8px;border-radius:8px;border:1px solid var(--line);background:var(--paper);color:var(--ink)}
+#fxd .pgpick .pgt{cursor:copy}
+</style>`);
+  let PICK='', PAT=-1;   /* 插入面板：從哪個單元挑、插在第幾張後面（-1＝最後） */
+  const UL=k=>UNITS[UKEYS.indexOf(k)]||['',''];
+  const ttl=(p,k)=>esc(p.title||(p.k==='open'?UL(k)[1]:p.k));
+  const thumb=(p,attr)=>p.k==='slide'&&typeof NQ!=='undefined'?`<img src="${NQ[p.src-1]}" alt="">`:`<div class="pgmini" ${attr}></div>`;
+  function setP(k,list){ const P=JSON.parse(JSON.stringify(ROUTE.p||{}));
+    if(list.join()===pgDefault(k).join()) delete P[k]; else P[k]=list;
+    applyRoute({o:ROUTE.o,x:ROUTE.x,c:ROUTE.c,h:ROUTE.h||[],p:P}); }
+  pgHTML=function(k){
+    const L=pgList(k), H=ROUTE.h||[], U=UL(k), cust=!!(ROUTE.p&&ROUTE.p[k]);
+    const cell=(x,pos)=>{ const on=x.own?!H.includes(x.ref):true;
+      return `<div class="pgt pgt2${on?' on':''}${x.own?'':' ins'}" data-pgt="${pos}" draggable="true" title="${x.own?'點一下切換使用／不用；拖曳或按 ◀ ▶ 換位置':'從別的單元插入的頁；拖曳或按 ◀ ▶ 換位置，按 ✕ 移除'}">
+        <span class="pgt-n">${pos+1}</span>${thumb(x.p,`data-mini2="${pos}"`)}<span class="pgt-t">${ttl(x.p,x.k2)}</span>
+        ${x.own?'':`<span class="pgfrom">↪ 來自「${esc(UL(x.k2)[0])}」</span>`}
+        <span class="pgt-c">${x.own?(on?'✓ 使用':'不用'):'插入的頁'}</span>
+        <span class="pgo"><button data-pgx="mv" data-d="-1" data-pos="${pos}" title="往前">◀</button><button data-pgx="mv" data-d="1" data-pos="${pos}" title="往後">▶</button>${x.own?'':`<button data-pgx="rm" data-pos="${pos}" title="從這個單元移除（原單元不受影響）">✕</button>`}</span></div>`; };
+    const n=L.filter(x=>x.own?!H.includes(x.ref):true).length;
+    let pick='';
+    if(PICK){ const PL=(MODS[PICK]||[]);
+      const units=UKEYS.filter(kk=>kk!==k&&kk!=='附錄'&&(MODS[kk]||[]).length);
+      pick=`<div class="pgpick"><div class="dk-row"><b>＋ 插入別的單元的頁</b>
+        <span>從</span><select data-pgx="psel">${units.map(kk=>`<option value="${kk}"${kk===PICK?' selected':''}>${esc(UL(kk)[0])}・${esc(UL(kk)[1])}</option>`).join('')}</select>
+        <span>插在</span><select data-pgx="pat"><option value="-1"${PAT<0?' selected':''}>最後面</option>${L.map((x,pos)=>`<option value="${pos}"${PAT===pos?' selected':''}>第 ${pos+1} 張後面</option>`).join('')}<option value="-2"${PAT===-2?' selected':''}>最前面</option></select>
+        <span class="dk-sub">點一張就插進來（複製一張，原單元照常有）</span><button data-pgx="pickx">收起</button></div>
+        <div class="pgg">${PL.map((p,i)=>{ const ref=PICK+'.'+i, has=L.some(x=>x.ref===ref);
+          return `<div class="pgt${has?'':' on'}" data-pgx="ins" data-ref="${ref}" title="${has?'已經插在這個單元':'插進這個單元'}"><span class="pgt-n">${i+1}</span>${thumb(p,`data-minir="${ref}"`)}<span class="pgt-t">${ttl(p,PICK)}</span><span class="pgt-c">${has?'✓ 已插入':'＋ 插入'}</span></div>`; }).join('')}</div></div>`; }
+    return `<div class="dk-pvbg"><div class="dk-pv pgv"><div class="dk-row"><b style="font-size:17px;margin-right:auto">${U[0]}・${U[1]}：選擇要用的頁、排順序（${n} / ${L.length}）</b>
+      <button data-pgx="pick">＋ 插入別的單元的頁</button>${cust?'<button data-pgx="reset">恢復原本的順序</button>':''}<button data-dx="pgall">全部使用</button><button data-dx="pgnone">只留第一頁</button><button data-dx="pvx" class="on">完成</button></div>
+     <div class="dk-sub">點一下切換使用或不用；拖曳或按 ◀ ▶ 換順序。虛線框是從別的單元插入的頁（按 ✕ 移除，不影響原單元）。不用的頁不會出現在電子書、學員版、課後版、PDF 與 A4 試行包。</div>
+     <div class="pgg">${L.map(cell).join('')}</div>${pick}</div></div>`;
+  };
+  pgToggle=function(k,pos){ const L=pgList(k), x=L[pos]; if(!x||!x.own) return;
+    let h=(ROUTE.h||[]).slice();
+    if(h.includes(x.ref)) h=h.filter(y=>y!==x.ref);
+    else { const n=L.filter(y=>y.own?!h.includes(y.ref):true).length; if(n<=1) return; h.push(x.ref); }
+    applyRoute({o:ROUTE.o,x:ROUTE.x,c:ROUTE.c,h,p:ROUTE.p||{}}); };
+  function move(k,from,to){ const list=pgList(k).map(x=>x.ref); if(from<0||from>=list.length) return; to=Math.max(0,Math.min(list.length-1,to)); if(from===to) return;
+    const [r]=list.splice(from,1); list.splice(to,0,r); setP(k,list); }
+  /* 縮圖：原本的 deckRender 畫完之後補上 */
+  const mini=(box,p)=>{ if(!p||box.firstChild) return; const el=document.createElement('div'); el.className='pg s wide'; el.style.setProperty('--pw','1123px'); el.style.setProperty('--ph','794px'); el.style.setProperty('--pw-n','730');
+    el.innerHTML=pageInner(p); if(window.__eqWrap) window.__eqWrap(el); box.appendChild(el); el.style.transform='scale('+(box.clientWidth/1123)+')'; try{ fitPage(el); }catch(e){} };
+  if(typeof deckRender==='function'){ const _dr=deckRender; deckRender=function(){ _dr(); const d=document.getElementById('fxd'); if(!d||d.hidden||!DK_PG) return;
+    const L=pgList(DK_PG); d.querySelectorAll('[data-mini2]').forEach(b=>{ const x=L[+b.dataset.mini2]; if(x) mini(b,x.p); });
+    d.querySelectorAll('[data-minir]').forEach(b=>{ const r=b.dataset.minir, j=r.lastIndexOf('.'); mini(b,(MODS[r.slice(0,j)]||[])[+r.slice(j+1)]); }); }; }
+  document.addEventListener('click',e=>{ const b=e.target.closest('#fxd [data-pgx]'); if(!b||b.tagName==='SELECT') return; e.stopPropagation(); e.preventDefault();
+    const k=DK_PG, a=b.dataset.pgx; if(!k) return;
+    if(a==='mv') return move(k,+b.dataset.pos,+b.dataset.pos+(+b.dataset.d));
+    if(a==='rm'){ const list=pgList(k).map(x=>x.ref); list.splice(+b.dataset.pos,1); return setP(k,list); }
+    if(a==='reset'){ return setP(k,pgDefault(k)); }
+    if(a==='pick'){ PICK=PICK?'':(UKEYS.find(kk=>kk!==k&&kk!=='附錄'&&(MODS[kk]||[]).length)||''); PAT=-1; return deckRender(); }
+    if(a==='pickx'){ PICK=''; return deckRender(); }
+    if(a==='ins'){ const list=pgList(k).map(x=>x.ref), r=b.dataset.ref; if(list.includes(r)) return;
+      const at=PAT===-2?0:PAT<0?list.length:PAT+1; list.splice(at,0,r); if(PAT>=0) PAT++; return setP(k,list); }
+  },true);
+  document.addEventListener('change',e=>{ const s=e.target.closest('#fxd select[data-pgx]'); if(!s) return;
+    if(s.dataset.pgx==='psel'){ PICK=s.value; deckRender(); } else if(s.dataset.pgx==='pat'){ PAT=+s.value; } },true);
+  /* 拖曳換位置（滑鼠） */
+  let DF=-1;
+  document.addEventListener('dragstart',e=>{ const c=e.target.closest&&e.target.closest('#fxd .pgt2'); if(!c) return; DF=+c.dataset.pgt; c.classList.add('dragging'); try{ e.dataTransfer.setData('text/plain',String(DF)); e.dataTransfer.effectAllowed='move'; }catch(err){} });
+  document.addEventListener('dragover',e=>{ const c=e.target.closest&&e.target.closest('#fxd .pgt2'); if(!c||DF<0) return; e.preventDefault();
+    const r=c.getBoundingClientRect(), right=e.clientX>r.left+r.width/2; document.querySelectorAll('#fxd .pgt2').forEach(x=>x.classList.remove('dropL','dropR')); c.classList.add(right?'dropR':'dropL'); });
+  document.addEventListener('drop',e=>{ const c=e.target.closest&&e.target.closest('#fxd .pgt2'); if(!c||DF<0) return; e.preventDefault();
+    const r=c.getBoundingClientRect(), right=e.clientX>r.left+r.width/2; let to=+c.dataset.pgt+(right?1:0); if(to>DF) to--; const f=DF; DF=-1; move(DK_PG,f,to); });
+  document.addEventListener('dragend',()=>{ DF=-1; document.querySelectorAll('#fxd .pgt2').forEach(x=>x.classList.remove('dragging','dropL','dropR')); });
+})();
+/*@@PGORD_END@@*/
 </script></body></html>
